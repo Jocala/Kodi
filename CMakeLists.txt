@@ -108,6 +108,8 @@ option(ENABLE_AIRTUNES    "Enable AirTunes support?" ON)
 option(ENABLE_OPTICAL     "Enable optical support?" ON)
 option(ENABLE_PYTHON      "Enable python support?" ON)
 option(ENABLE_TESTING     "Enable testing support?" ON)
+option(ENABLE_PVR         "Enable PVR support?" OFF)
+option(ENABLE_GAMES       "Enable games support?" OFF)
 
 # Internal Depends - supported on all platforms
 

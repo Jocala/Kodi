@@ -329,32 +329,7 @@ bool CAddonInstaller::InstallModal(const std::string& addonID,
                                    ADDON::AddonPtr& addon,
                                    InstallModalPrompt promptForInstall)
 {
-  if (!g_passwordManager.CheckMenuLock(WINDOW_ADDON_BROWSER))
-    return false;
-
-  // we assume that addons that are enabled don't get to this routine (i.e. that GetAddon() has been called)
-  if (CServiceBroker::GetAddonMgr().GetAddon(addonID, addon, OnlyEnabled::CHOICE_NO))
-    return false; // addon is installed but disabled, and the user has specifically activated something that needs
-                  // the addon - should we enable it?
-
-  // check we have it available
-  if (!CServiceBroker::GetAddonMgr().FindInstallableById(addonID, addon))
-    return false;
-
-  // if specified ask the user if he wants it installed
-  if (promptForInstall == InstallModalPrompt::CHOICE_YES)
-  {
-    if (HELPERS::ShowYesNoDialogLines(CVariant{24076}, CVariant{24100}, CVariant{addon->Name()},
-                                      CVariant{24101}) != DialogResponse::CHOICE_YES)
-    {
-      return false;
-    }
-  }
-
-  if (!InstallOrUpdate(addonID, BackgroundJob::CHOICE_NO, ModalJob::CHOICE_YES))
-    return false;
-
-  return CServiceBroker::GetAddonMgr().GetAddon(addonID, addon, OnlyEnabled::CHOICE_YES);
+  return false;
 }
 
 
@@ -362,13 +337,7 @@ bool CAddonInstaller::InstallOrUpdate(const std::string& addonID,
                                       BackgroundJob background,
                                       ModalJob modal)
 {
-  AddonPtr addon;
-  RepositoryPtr repo;
-  if (!CAddonInstallJob::GetAddon(addonID, repo, addon))
-    return false;
-
-  return DoInstall(addon, repo, background, modal, AutoUpdateJob::CHOICE_NO,
-                   DependencyJob::CHOICE_NO, AllowCheckForUpdates::CHOICE_YES);
+  return false;
 }
 
 bool CAddonInstaller::InstallOrUpdateDependency(const ADDON::AddonPtr& dependsId,
@@ -417,23 +386,7 @@ bool CAddonInstaller::Install(const std::string& addonId,
                               const CAddonVersion& version,
                               const std::string& repoId)
 {
-  CLog::Log(LOGDEBUG, "CAddonInstaller: installing '{}' version '{}' from repository '{}'", addonId,
-            version.asString(), repoId);
-
-  AddonPtr addon;
-  CAddonDatabase database;
-
-  if (!database.Open() || !database.GetAddon(addonId, version, repoId, addon))
-    return false;
-
-  AddonPtr repo;
-  if (!CServiceBroker::GetAddonMgr().GetAddon(repoId, repo, AddonType::REPOSITORY,
-                                              OnlyEnabled::CHOICE_YES))
-    return false;
-
-  return DoInstall(addon, std::static_pointer_cast<CRepository>(repo), BackgroundJob::CHOICE_YES,
-                   ModalJob::CHOICE_NO, AutoUpdateJob::CHOICE_NO, DependencyJob::CHOICE_NO,
-                   AllowCheckForUpdates::CHOICE_YES);
+  return false;
 }
 
 bool CAddonInstaller::DoInstall(const AddonPtr& addon,
@@ -488,53 +441,12 @@ bool CAddonInstaller::DoInstall(const AddonPtr& addon,
 
 bool CAddonInstaller::InstallFromZip(const std::string &path)
 {
-  if (!g_passwordManager.CheckMenuLock(WINDOW_ADDON_BROWSER))
-    return false;
-
-  CLog::Log(LOGDEBUG, "CAddonInstaller: installing from zip '{}'", CURL::GetRedacted(path));
-
-  // grab the descriptive XML document from the zip, and read it in
-  CFileItemList items;
-  //! @bug some zip files return a single item (root folder) that we think is stored, so we don't use the zip:// protocol
-  CURL pathToUrl(path);
-  CURL zipDir = URIUtils::CreateArchivePath("zip", pathToUrl, "");
-  auto eventLog = CServiceBroker::GetEventLog();
-  if (!CDirectory::GetDirectory(zipDir, items, "", DIR_FLAG_DEFAULTS) || items.Size() != 1 ||
-      !items[0]->IsFolder())
-  {
-    if (eventLog)
-      eventLog->AddWithNotification(std::make_shared<const CNotificationEvent>(
-          24045,
-          StringUtils::Format(
-              CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24143), path),
-          "special://xbmc/media/icon256x256.png", EventLevel::Error));
-
-    CLog::Log(LOGERROR, "CAddonInstaller: installing addon failed '{}' - item count: {}{}",
-              CURL::GetRedacted(path), items.Size(),
-              items.Size() > 0 ? fmt::format(", first item is folder: {}", items[0]->IsFolder())
-                               : "");
-    return false;
-  }
-
-  AddonPtr addon;
-  if (CServiceBroker::GetAddonMgr().LoadAddonDescription(items[0]->GetPath(), addon))
-    return DoInstall(addon, RepositoryPtr(), BackgroundJob::CHOICE_YES, ModalJob::CHOICE_NO,
-                     AutoUpdateJob::CHOICE_NO, DependencyJob::CHOICE_NO,
-                     AllowCheckForUpdates::CHOICE_YES);
-
-  if (eventLog)
-    eventLog->AddWithNotification(std::make_shared<const CNotificationEvent>(
-        24045,
-        StringUtils::Format(CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(24143),
-                            path),
-        "special://xbmc/media/icon256x256.png", EventLevel::Error));
   return false;
 }
 
 bool CAddonInstaller::UnInstall(const AddonPtr& addon, bool removeData)
 {
-  CServiceBroker::GetJobManager()->AddJob(new CAddonUnInstallJob(addon, removeData), this);
-  return true;
+  return false;
 }
 
 bool CAddonInstaller::CheckDependencies(const AddonPtr& addon,

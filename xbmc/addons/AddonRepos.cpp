@@ -88,69 +88,7 @@ bool CAddonRepos::IsOfficialRepo(const std::string& repoId)
 bool CAddonRepos::LoadAddonsFromDatabase(const std::string& addonId,
                                          const std::shared_ptr<IAddon>& repoAddon)
 {
-  if (repoAddon != ALL_REPOSITORIES)
-  {
-    if (!m_addonDb.GetRepositoryContent(repoAddon->ID(), m_allAddons))
-    {
-      // Repo content is invalid. Ask for update and wait.
-      CServiceBroker::GetRepositoryUpdater().CheckForUpdates(
-          std::static_pointer_cast<CRepository>(repoAddon));
-      CServiceBroker::GetRepositoryUpdater().Await();
-
-      if (!m_addonDb.GetRepositoryContent(repoAddon->ID(), m_allAddons))
-      {
-
-        // could not connect to repository
-        KODI::MESSAGING::HELPERS::ShowOKDialogText(CVariant{repoAddon->Name()}, CVariant{24991});
-        return false;
-      }
-    }
-  }
-  else if (addonId == ALL_ADDON_IDS)
-  {
-    // load full repository content
-    m_addonDb.GetRepositoryContent(m_allAddons);
-    if (m_allAddons.empty())
-      return true;
-  }
-  else
-  {
-    // load specific addonId only
-    m_addonDb.FindByAddonId(addonId, m_allAddons);
-  }
-
-  if (m_allAddons.empty())
-    return false;
-
-  for (const auto& addon : m_allAddons)
-  {
-    if (m_addonMgr.IsCompatible(addon))
-    {
-      m_addonsByRepoMap[addon->Origin()].emplace(addon->ID(), addon);
-    }
-  }
-
-  for (const auto& [repoId, addonsPerRepo] : m_addonsByRepoMap)
-  {
-    CLog::LogFC(LOGDEBUG, LOGADDONS, "{} - {} addon(s) loaded", repoId, addonsPerRepo.size());
-
-    for (const auto& [_, addonToAdd] : addonsPerRepo)
-    {
-      if (IsFromOfficialRepo(addonToAdd, CheckAddonPath::CHOICE_YES))
-      {
-        AddAddonIfLatest(addonToAdd, m_latestOfficialVersions);
-      }
-      else
-      {
-        AddAddonIfLatest(addonToAdd, m_latestPrivateVersions);
-      }
-
-      // add to latestVersionsByRepo
-      AddAddonIfLatest(repoId, addonToAdd, m_latestVersionsByRepo);
-    }
-  }
-
-  return true;
+  return false;
 }
 
 void CAddonRepos::AddAddonIfLatest(

@@ -46,6 +46,7 @@
 						<icon>icons/settings/filemanager.png</icon>
 					</item>
 					<item>
+						<visible>false</visible>
 						<label>$LOCALIZE[24001]</label>
 						<onclick>ActivateWindow(addonbrowser)</onclick>
 						<icon>icons/settings/addons.png</icon>
@@ -73,6 +74,11 @@
 				<include>SettingsPanel</include>
 				<content>
 					<item>
+						<label>Restore</label>
+						<onclick>restorefromnetwork</onclick>
+						<icon>icons/settings/network.png</icon>
+					</item>
+					<item>
 						<label>$LOCALIZE[14200]</label>
 						<onclick>ActivateWindow(PlayerSettings)</onclick>
 						<icon>icons/settings/player.png</icon>
@@ -82,22 +88,23 @@
 						<onclick>ActivateWindow(MediaSettings)</onclick>
 						<icon>icons/settings/media.png</icon>
 					</item>
-					<item>
-						<label>$LOCALIZE[14204]</label>
-						<onclick>ActivateWindow(PVRSettings)</onclick>
-						<icon>icons/settings/livetv.png</icon>
-					</item>
-					<item>
-						<label>$LOCALIZE[14036]</label>
-						<onclick>ActivateWindow(ServiceSettings)</onclick>
-						<icon>icons/settings/network.png</icon>
-					</item>
-					<item>
-						<label>$LOCALIZE[15016]</label>
-						<visible>System.GetBool(gamesgeneral.enable)</visible>
-						<onclick>ActivateWindow(GameSettings)</onclick>
-						<icon>icons/settings/games.png</icon>
-					</item>
+				<item>
+					<visible>false</visible>
+					<label>$LOCALIZE[14204]</label>
+					<onclick>ActivateWindow(PVRSettings)</onclick>
+					<icon>icons/settings/livetv.png</icon>
+				</item>
+				<item>
+					<label>$LOCALIZE[14036]</label>
+					<onclick>ActivateWindow(ServiceSettings)</onclick>
+					<icon>icons/settings/network.png</icon>
+				</item>
+				<item>
+					<visible>false</visible>
+					<label>$LOCALIZE[15016]</label>
+					<onclick>ActivateWindow(GameSettings)</onclick>
+					<icon>icons/settings/games.png</icon>
+				</item>
 					<item>
 						<label>$LOCALIZE[14206]</label>
 						<onclick>ActivateWindow(InterfaceSettings)</onclick>

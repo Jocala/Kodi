@@ -179,6 +179,7 @@ const CWindowTranslator::WindowMapByName CWindowTranslator::WindowMappingByName 
     {"dialogselectvideo", WINDOW_DIALOG_SELECT_VIDEO_STREAM},
     {"dialogselectaudio", WINDOW_DIALOG_SELECT_AUDIO_STREAM},
     {"dialogselectsubtitle", WINDOW_DIALOG_SELECT_SUBTITLE_STREAM},
+    {"dialogrestore", WINDOW_DIALOG_RESTORE},
 };
 
 namespace

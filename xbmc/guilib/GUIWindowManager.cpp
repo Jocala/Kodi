@@ -81,6 +81,7 @@
 #include "addons/gui/GUIDialogAddonInfo.h"
 #include "addons/gui/GUIDialogAddonSettings.h"
 #include "dialogs/GUIDialogBusy.h"
+#include "dialogs/GUIDialogRestore.h"
 #include "dialogs/GUIDialogBusyNoCancel.h"
 #include "dialogs/GUIDialogButtonMenu.h"
 #include "dialogs/GUIDialogColorPicker.h"
@@ -260,6 +261,7 @@ void CGUIWindowManager::CreateWindows()
   Add(new CGUIDialogSmartPlaylistRule);
   Add(new CGUIDialogBusy);
   Add(new CGUIDialogBusyNoCancel);
+  Add(new CGUIDialogRestore);
   Add(new CGUIDialogPictureInfo);
   Add(new CGUIDialogAddonInfo);
   Add(new CGUIDialogAddonSettings);

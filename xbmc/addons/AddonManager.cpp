@@ -671,7 +671,6 @@ bool CAddonMgr::FindAddon(const std::string& addonId,
   // Confirm special://xbmcbin/addons and special://xbmc/addons are not the same
   if (!CSpecialProtocol::ComparePath("special://xbmcbin/addons", "special://xbmc/addons"))
     FindAddons(installedAddons, "special://xbmc/addons");
-  FindAddons(installedAddons, "special://home/addons");
 
   const auto it = installedAddons.find(addonId);
   if (it == installedAddons.cend() || it->second->Version() != addonVersion)
@@ -702,7 +701,6 @@ bool CAddonMgr::FindAddons()
   // Confirm special://xbmcbin/addons and special://xbmc/addons are not the same
   if (!CSpecialProtocol::ComparePath("special://xbmcbin/addons", "special://xbmc/addons"))
     FindAddons(installedAddons, "special://xbmc/addons");
-  FindAddons(installedAddons, "special://home/addons");
 
   std::set<std::string, std::less<>> installed;
   for (const auto& [_, addon] : installedAddons)

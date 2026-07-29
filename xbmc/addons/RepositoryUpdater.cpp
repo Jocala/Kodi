@@ -133,16 +133,6 @@ CRepositoryUpdater::CRepositoryUpdater(CAddonMgr& addonMgr) : m_timer(this), m_a
 
 void CRepositoryUpdater::Start()
 {
-  m_addonMgr.Events().Subscribe(this,
-                                [this](const ADDON::AddonEvent& event)
-                                {
-                                  if (typeid(event) == typeid(ADDON::AddonEvents::Enabled))
-                                  {
-                                    if (m_addonMgr.HasType(event.addonId, AddonType::REPOSITORY))
-                                      ScheduleUpdate(UpdateScheduleType::First);
-                                  }
-                                });
-  ScheduleUpdate(UpdateScheduleType::First);
 }
 
 CRepositoryUpdater::~CRepositoryUpdater()
@@ -322,40 +312,5 @@ CDateTime CRepositoryUpdater::ClosestNextCheck() const
 
 void CRepositoryUpdater::ScheduleUpdate(UpdateScheduleType scheduleType)
 {
-  using namespace std::chrono;
-
-  std::unique_lock lock(m_criticalSection);
-  m_timer.Stop(true);
-
-  if (CAddonSystemSettings::GetInstance().GetAddonAutoUpdateMode() == AUTO_UPDATES_NEVER)
-    return;
-
-  if (!m_addonMgr.HasAddons(AddonType::REPOSITORY))
-    return;
-
-  milliseconds delta{1};
-  const auto nextCheck = ClosestNextCheck();
-  if (nextCheck.IsValid())
-  {
-    // Repos were already checked once and we know when to check next.
-    // delta must be positive and not zero (m_timer.Start() ignores 0 wait time)
-    delta = std::max<milliseconds>(
-        delta, seconds((nextCheck - CDateTime::GetCurrentDateTime()).GetSecondsTotal()));
-    CLog::Log(LOGDEBUG, "CRepositoryUpdater: closest next update check at {} (in {})",
-              nextCheck.GetAsLocalizedDateTime(), duration_cast<seconds>(delta));
-  }
-
-  if (scheduleType == UpdateScheduleType::Regular)
-  {
-    // Enforce minimum hold-off time of 1 hour between regular updates - this is especially
-    // important to handle all sorts of failure cases (e.g., failure to update the add-on database)
-    // that would otherwise lead to an immediate new update attempt and continuous hammering of the servers.
-    delta = std::max<milliseconds>(hours(1), delta);
-  }
-
-  CLog::Log(LOGDEBUG, "CRepositoryUpdater: checking in {}", delta);
-
-  if (!m_timer.Start(delta))
-    CLog::Log(LOGERROR,"CRepositoryUpdater: failed to start timer");
 }
 }

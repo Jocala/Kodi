@@ -9,6 +9,9 @@
 #include "SystemBuiltins.h"
 
 #include "ServiceBroker.h"
+#include "dialogs/GUIDialogRestore.h"
+#include "guilib/GUIComponent.h"
+#include "guilib/GUIWindowManager.h"
 #include "messaging/ApplicationMessenger.h"
 #include "utils/StringUtils.h"
 
@@ -128,6 +131,19 @@ static int InhibitScreenSaver(const std::vector<std::string>& params)
   bool inhibit = (params.size() == 1 && StringUtils::EqualsNoCase(params[0], "true"));
   CServiceBroker::GetAppMessenger()->PostMsg(TMSG_INHIBITSCREENSAVER, inhibit);
 
+  return 0;
+}
+
+/*! \brief Restore userdata from SMB.
+ *  \param params (ignored)
+ */
+static int RestoreFromNetwork(const std::vector<std::string>& params)
+{
+  auto dlg = CServiceBroker::GetGUI()
+                 ->GetWindowManager()
+                 .GetWindow<CGUIDialogRestore>(WINDOW_DIALOG_RESTORE);
+  if (dlg)
+    dlg->Open();
   return 0;
 }
 
@@ -260,6 +276,7 @@ CBuiltins::CommandMap CSystemBuiltins::GetOperations() const
           {"restart", {"Restart the system (same as reboot)", 0, Reboot}},
           {"restartapp", {"Restart Kodi", 0, RestartApp}},
           {"shutdown", {"Shutdown the system", 0, Shutdown}},
+          {"restorefromnetwork", {"Restore userdata from network", 0, RestoreFromNetwork}},
           {"suspend", {"Suspends the system", 0, Suspend}},
           {"system.exec", {"Execute shell commands", 1, Exec<0>}},
           {"system.execwait",
