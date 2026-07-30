@@ -74,7 +74,7 @@
 				<include>SettingsPanel</include>
 				<content>
 					<item>
-						<label>Restore</label>
+						<label>Backup / Restore</label>
 						<onclick>restorefromnetwork</onclick>
 						<icon>icons/settings/network.png</icon>
 					</item>
@@ -105,11 +105,12 @@
 					<onclick>ActivateWindow(GameSettings)</onclick>
 					<icon>icons/settings/games.png</icon>
 				</item>
-					<item>
-						<label>$LOCALIZE[14206]</label>
-						<onclick>ActivateWindow(InterfaceSettings)</onclick>
-						<icon>icons/settings/interface.png</icon>
-					</item>
+				<item>
+					<visible>false</visible>
+					<label>$LOCALIZE[14206]</label>
+					<onclick>ActivateWindow(InterfaceSettings)</onclick>
+					<icon>icons/settings/interface.png</icon>
+				</item>
 					<item>
 						<label>$LOCALIZE[13200]</label>
 						<onclick>ActivateWindow(Profiles)</onclick>
