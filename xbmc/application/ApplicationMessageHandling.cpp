@@ -148,7 +148,7 @@ void CApplicationMessageHandling::OnApplicationMessage(MESSAGING::ThreadMessage*
       break;
 
     case TMSG_RESTARTAPP:
-#if defined(TARGET_WINDOWS) || defined(TARGET_LINUX) || defined(TARGET_DARWIN_EMBEDDED)
+#if defined(TARGET_WINDOWS) || defined(TARGET_LINUX)
       m_app.Stop(EXITCODE_RESTARTAPP);
 #endif
       break;

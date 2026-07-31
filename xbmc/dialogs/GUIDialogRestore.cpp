@@ -69,7 +69,6 @@ bool CGUIDialogRestore::OnMessage(CGUIMessage& message)
       setEdit(CONTROL_EDIT_USERNAME, config.username);
       setEdit(CONTROL_EDIT_PASSWORD, config.password);
       setEdit(CONTROL_EDIT_SHAREPATH, config.sharepath);
-      setEdit(CONTROL_EDIT_SELECTED, config.selected);
 
       return true;
     }
@@ -150,8 +149,6 @@ bool CGUIDialogRestore::LoadConfig(SMBConfig& config)
     config.password = variant["password"].asString();
   if (variant["sharepath"].isString())
     config.sharepath = variant["sharepath"].asString();
-  if (variant["selected"].isString())
-    config.selected = variant["selected"].asString();
   return true;
 }
 
@@ -162,7 +159,6 @@ bool CGUIDialogRestore::SaveConfig(const SMBConfig& config)
   variant["username"] = config.username;
   variant["password"] = config.password;
   variant["sharepath"] = config.sharepath;
-  variant["selected"] = config.selected;
 
   std::string json;
   if (!CJSONVariantWriter::Write(variant, json, true))
@@ -568,7 +564,7 @@ void CGUIDialogRestore::OnRestore()
   }
 
   D("=== Restore completed successfully, restarting ===");
-  CServiceBroker::GetAppMessenger()->PostMsg(TMSG_RESTARTAPP);
+  CServiceBroker::GetAppMessenger()->PostMsg(TMSG_QUIT);
 }
 
 bool CGUIDialogRestore::CopyDirectory(const SMBConfig& config, const std::string& subPath,

@@ -11,7 +11,7 @@
       <include content="DialogBackgroundCommons">
         <param name="width" value="1200" />
         <param name="height" value="800" />
-        <param name="header_label" value="Backup / Restore" />
+        <param name="header_label" value="SMB Backup / Restore" />
         <param name="header_id" value="2" />
       </include>
 

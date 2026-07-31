@@ -14,7 +14,6 @@
 #include "application/AppEnvironment.h"
 #include "application/AppParams.h"
 #include "application/Application.h"
-#include "application/ApplicationEnums.h"
 #include "application/ApplicationComponents.h"
 #include "application/ApplicationPowerHandling.h"
 #include "cores/AudioEngine/Interfaces/AE.h"
@@ -360,21 +359,15 @@ XBMCController* g_xbmcController;
     int status = 0;
     try
     {
-      while (true)
-      {
-        // set up some Kodi specific relationships
-        //    XBMC::Context run_context; //! @todo
-        m_appAlive = YES;
-        // start up with gui enabled
-        status = KODI_Run(true);
-        // we exited or died.
-        auto& components = CServiceBroker::GetAppComponents();
-        const auto appPower = components.GetComponent<CApplicationPowerHandling>();
-        appPower->SetRenderGUI(false);
-
-        [self enableScreenSaver];
-        CLog::Log(LOGINFO, "Restarting Kodi...");
-      }
+      // set up some Kodi specific relationships
+      //    XBMC::Context run_context; //! @todo
+      m_appAlive = YES;
+      // start up with gui enabled
+      status = KODI_Run(true);
+      // we exited or died.
+      auto& components = CServiceBroker::GetAppComponents();
+      const auto appPower = components.GetComponent<CApplicationPowerHandling>();
+      appPower->SetRenderGUI(false);
     }
     catch (...)
     {
