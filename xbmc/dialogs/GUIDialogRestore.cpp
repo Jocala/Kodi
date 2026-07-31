@@ -52,13 +52,7 @@ bool CGUIDialogRestore::OnMessage(CGUIMessage& message)
     {
       CGUIDialog::OnMessage(message);
       SMBConfig config;
-      if (!LoadConfig(config))
-      {
-        config.host = "192.168.1.39";
-        config.username = "jeff";
-        config.password = "xky91234";
-        config.sharepath = "storage/kodi";
-      }
+      LoadConfig(config);
       auto setEdit = [this](int id, const std::string& val)
       {
         CGUIEditControl* edit = dynamic_cast<CGUIEditControl*>(GetControl(id));

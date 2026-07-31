@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+WIPE=0
+case "$1" in
+  --wipe) WIPE=1 ;;
+  "") ;;
+  *) echo "Usage: $0 [--wipe]" >&2; exit 1 ;;
+esac
+
 KODI_SRC="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$KODI_SRC/kodi-build"
 APP_PATH="$BUILD_DIR/build/Debug-appletvos/Kodi.app"
@@ -19,16 +26,18 @@ xcodebuild -project "$BUILD_DIR/kodi.xcodeproj" \
   -config Debug \
   -destination "generic/platform=tvOS"
 
-echo ""
-echo "=== 3. Uninstall old app from device ==="
-xcrun devicectl device uninstall app --device "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
+if [ "$WIPE" -eq 1 ]; then
+  echo ""
+  echo "=== 3. Uninstall old app from device (wipe) ==="
+  xcrun devicectl device uninstall app --device "$DEVICE" "$BUNDLE_ID" 2>/dev/null || true
+fi
 
 echo ""
-echo "=== 4. Install to device ==="
+echo "=== Install to device (data preserved) ==="
 xcrun devicectl device install app --device "$DEVICE" "$APP_PATH"
 
 echo ""
-echo "=== 5. Launch ==="
+echo "=== Launch ==="
 xcrun devicectl device process launch --device "$DEVICE" --terminate-existing "$BUNDLE_ID"
 
 echo ""
