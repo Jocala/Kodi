@@ -1,0 +1,50 @@
+=== Xcode Version ===
+Xcode 26.4.1
+Build version 17E202
+
+=== Swift Version ===
+swift-driver version: 1.148.6 Apple Swift version 6.3.1 (swiftlang-6.3.1.1.2 clang-2100.0.123.102)
+Target: arm64-apple-macosx26.0
+
+=== Signing Certificates ===
+1.2.840.113635.100.1.61
+  1) B912B1CCFF6074B9BA4AA6C5D4BAF5EC09619149 "Apple Development: jeff elkins (B459C7RRUN)" (CSSMERR_TP_CERT_EXPIRED)
+  2) 118F59158CA1DBE8039442A586A64DD7500409F4 "Apple Development: kelkins@gmail.com (M746HMTV46)" (CSSMERR_TP_CERT_EXPIRED)
+  3) 582035F81C5C9F2509F14DE3B3C9EFB25640CD3F "Apple Development: jeff elkins (B459C7RRUN)" (Missing required extension)
+  4) BB4E5094F0F8DC07C85426A345D244B8B9953C05 "Developer ID Application: jeff elkins (9Q77WK7W3R)" (Missing required extension)
+  5) B65C2B3CEC7920B1EDC07D8B7AC3B182513A3468 "m1.lan" (CSSMERR_TP_CERT_EXPIRED)
+  6) 8C902B74666F3DD925303D094BBDA0BA20F33EBB "macmini.lan" (CSSMERR_TP_CERT_EXPIRED)
+     6 valid identities found
+
+=== Provisioning Profiles ===
+tvOS Team Provisioning Profile: com.jocala.* | bundle: 9Q77WK7W3R.com.jocala.* | team: 9Q77WK7W3R | uuid: 741f20ec-9229-4db7-a44a-01808875a1bc
+iOS Team Provisioning Profile: com.jocala.panelshow | bundle: 9Q77WK7W3R.com.jocala.panelshow | team: 9Q77WK7W3R | uuid: ab6696ae-f3a4-4a58-b4d9-253c6dc0fba6
+iOS Team Provisioning Profile: com.jocala.* | bundle: 9Q77WK7W3R.com.jocala.* | team: 9Q77WK7W3R | uuid: d730673a-9735-4b35-b007-a189dccdc3c4
+
+=== Apple Devices (devicectl) ===
+Name      Hostname                     Identifier                             State                Model                                     
+-------   --------------------------   ------------------------------------   ------------------   ------------------------------------------
+appletv   appletv-5.coredevice.local   942EFDDE-3584-5D12-9672-17CA071EB5E5   available (paired)   Apple TV 4K (3rd generation) (AppleTV14,1)
+jpad      jpad.coredevice.local        83AD472F-8BE9-58BD-9936-4EDF5B660609   available (paired)   iPad (A16) (iPad15,7)                     
+jphone    jphone.coredevice.local      2A26B51F-5502-5D00-AECF-76896E24EDF1   available (paired)   iPhone 15 Pro Max (iPhone16,2)            
+mpad      mpad.coredevice.local        8BACA08C-16D6-50EB-82F1-FC15946B004F   available (paired)   iPad mini (6th generation) (iPad14,1)     
+opad      opad.coredevice.local        9B5909D2-1931-5CD8-B6E8-E29C1F39F10D   available (paired)   iPad Air (3rd generation) (iPad11,3)      
+
+=== Team Info ===
+Team Name: jeff elkins
+Team ID: 9Q77WK7W3R
+Developer Account: jeff elkins (B459C7RRUN)
+
+=== macOS ===
+ProductName:		macOS
+ProductVersion:		26.5.2
+BuildVersion:		25F84
+
+=== JDK (Android) ===
+
+=== Gradle (Android) ===
+Gradle 8.7
+Kotlin:       1.9.22
+openjdk version "21.0.1" 2023-10-17 LTS
+OpenJDK Runtime Environment Temurin-21.0.1+12 (build 21.0.1+12-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.1+12 (build 21.0.1+12-LTS, mixed mode)
