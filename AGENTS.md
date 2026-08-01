@@ -85,6 +85,97 @@ Produce a minimal Kodi build for **Apple TV (tvOS)** with network-based userdata
 - Hardcoded default SMB credentials in `GUIDialogRestore.cpp` (host: `192.168.1.39`, user: `jeff`, password: `xky91234`)
 - SMB URL embeds `username:password@host` in plaintext in logs
 
+## App Store / TestFlight Build & Upload (2026-07-31)
+
+Goal: get Kodi onto TestFlight. App Store server-side validation (error code 90171)
+rejects any standalone Mach-O binary in the bundle other than the app executable
+and supported bundles.
+
+### What Apple rejected (now fixed)
+- `script.module.pil` addon — shipped `.so` Python C extensions (`PIL/_imaging*.so`).
+  Useless with `ENABLE_PYTHON=OFF`; deleted entirely from the app bundle.
+- `system/players/VideoPlayer/libdvdnav-aarch64.so` — DVD navigation; not needed
+  for SMB playback; deleted.
+- `Frameworks/lib` — empty dir; deleted.
+- `Info.plist` had `UIFileSharingEnabled` as `<string>YES</string>`; Apple requires
+  boolean `<true/>`. Fixed in `xbmc/platform/darwin/tvos/Info.plist.in:43`.
+
+### ⚠️ Do NOT delete whole addon directories (crash found 2026-07-31)
+`script.module.pil` is listed as a **required** addon in
+`AppData/AppHome/system/addon-manifest.xml`. `CAddonMgr::Init()` (in
+`xbmc/addons/AddonManager.cpp`) hard-fails if it's missing/enabled:
+```
+critical: addon 'script.module.pil' not installed or not enabled.
+critical: CServiceManager::InitStageTwo: Unable to start CAddonMgr
+error:   ERROR: Unable to create application. Exiting
+```
+Kodi then calls `exit(0)` and SIGSEGVs in static teardown
+(`CApplication::~CApplication` → `CAddonMgr::~CAddonMgr` →
+`CDirectoryCache::FileExists`), so the app "installs but won't open".
+The `build-testflight.sh` strip step therefore deletes **only `.so` files**
+(`find .../AppData/AppHome -name '*.so' -delete`), keeping `addon.xml` + `.py`
+sources so Kodi starts. `libdvdnav-aarch64.so` is NOT in the manifest, so
+deleting it is safe (only used for DVD playback).
+
+### Known CMake gotcha
+`xcodebuild archive` on the CMake-generated project produces an **empty**
+`Products/Applications/` (products land in `UninstalledProducts/appletvos/`),
+a silent `** ARCHIVE FAILED **`, exit 65. The `.xcarchive` must instead be
+assembled manually from the built `Kodi.app` (see `build-testflight.sh`).
+
+### Working pipeline (`build-testflight.sh`)
+1. Regenerate Xcode project via `make -C tools/depends/target/cmakebuildsys`
+   with `-DENABLE_PVR=ON -DENABLE_GAMES=ON -DENABLE_PYTHON=OFF
+   -DPLATFORM_BUNDLE_IDENTIFIER=com.jocala.kodi -DDEVELOPMENT_TEAM=9Q77WK7W3R`
+2. Set version/build number in the two CMake-generated `Info.plist`s
+   (build number = `YYYYMMDD.N` counter stored in `kodi-build/.buildnumber`)
+3. `xcodebuild ... -configuration Release -destination generic/platform=tvOS`
+   (delete stale `Kodi.app`/`kodi-topshelf.appex` **symlinks** in
+   `kodi-build/build/Release-appletvos/` first, or `MkDir` fails)
+4. Strip `.so` files from `AppData/AppHome` (`find ... -name '*.so' -delete`;
+   keeps addon `addon.xml`+`.py` so the manifest check passes), remove empty
+   `Frameworks/lib`, verify no `.so` left
+5. Assemble `.xcarchive` by hand (copy `Kodi.app` to `Products/Applications/`,
+   write archive `Info.plist` with `ApplicationProperties`)
+6. `xcodebuild -exportArchive ... -exportOptionsPlist ExportOptions.plist
+   -allowProvisioningUpdates` with `method=app-store-connect`,
+   `teamID=9Q77WK7W3R`, `signingStyle=automatic` → produces `Kodi.ipa`
+
+### Signing / profiles
+- Dev build signs with **development** identity — correct for `devicectl` install,
+  wrong for App Store.
+- Store export auto-creates/uses App Store distribution profiles on disk:
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` has
+  `tvOS Team Store Provisioning Profile: com.jocala.kodi` (+ `.topshelf`).
+  Requires `-allowProvisioningUpdates` if they don't yet exist.
+- Store profile entitlements: `get-task-allow=false`, `beta-reports-active=true`,
+  `application-groups` group.com.jocala.kodi.
+- ASC app record: tvOS "Jocala Media", adamId `6796066358`, provider `69a6de6e...`.
+
+### Uploading to App Store Connect
+```bash
+xcrun altool --upload-app -f "$BUILD_DIR/TestFlight/Kodi.ipa" -t tvos \
+  -u jeffelkins@gmail.com -p <APP_SPECIFIC_PASSWORD>
+# or --apiKey <KEY_ID> --apiIssuer <ISSUER_ID> --apiKeyPath <PATH_TO_P8>
+```
+No app-specific password is stored in keychain; user must supply one.
+
+### Outcomes
+- `/tmp/kodi-export2/Kodi.ipa` (manual run, 2026-07-31): **export + validation PASSED**
+  after stripping. Nothing else was flagged.
+- **2026-07-31: build `20260731.5` launched successfully on the Apple TV via
+  TestFlight** — after fixing the strip step to delete only `.so` files (PIL
+  addon kept). The prior `.4` crashed at launch (manifest check).
+- TestFlight gotcha: `xcodebuild -exportArchive` with `destination=upload`
+  streams the `.ipa` straight to ASC (no local `.ipa` produced). New builds must
+  be manually added to a TestFlight group (`Add to Group`); Automatic
+  Distribution did not always attach them. If a freshly uploaded build is not
+  visible in the TV's TestFlight app, force-quit TestFlight:
+  `xcrun devicectl device process terminate --device <uuid> --pid <pid>` (PID via
+  `xcrun devicectl device info processes`), or just relaunch it.
+- Install-on-device for testing still uses `build-install.sh` (dev-signed build,
+  `xcrun devicectl device install app`).
+
 ## Build System
 
 - **CMake** >= 3.18 (3.30.6 on Windows), project `kodi` with languages C, C++, ASM
