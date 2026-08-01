@@ -91,13 +91,9 @@ bool CGUIKeyboardFactory::ShowAndGetInput(std::string& aTextString,
         (uint32_t)heading.asInteger());
 
   bool useKodiKeyboard = true;
-#if defined(TARGET_DARWIN_EMBEDDED)
 #if defined(TARGET_DARWIN_TVOS)
   useKodiKeyboard = CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
       CSettings::SETTING_INPUT_TVOSUSEKODIKEYBOARD);
-#else
-  useKodiKeyboard = CDarwinEmbedKeyboard::hasExternalKeyboard();
-#endif // defined(TARGET_DARWIN_TVOS)
 #endif
 
   auto& winManager = CServiceBroker::GetGUI()->GetWindowManager();
