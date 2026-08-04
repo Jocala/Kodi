@@ -78,6 +78,12 @@ Produce a minimal Kodi build for **Apple TV (tvOS)** with network-based userdata
 - `Settings.xml` — added "Restore" item; hidden Addons, PVR Settings, Game Settings
 - `SkinSettings.xml` — hidden TV/Radio/Games/Addons visibility toggles
 
+**Home screen logo (upper-left):**
+- The Kodi "K" glyph + "KODI" wordmark in the upper-left of the home screen is a **single image**, `media/vendor_logo.png` (465×128, mark + wordmark baked together — there is no separate text label).
+- Rendered by `addons/skin.estuary/xml/Home.xml:1173-1180` — an `<image>` control (`left:4, top:0`, 192×56, `<texture>special://xbmc/media/vendor_logo.png</texture>`) inside a group at `left:90, top:30`.
+- To hide/swap: edit that one image control (`<visible>false</visible>` or change `<texture>`). Same logo also appears on `LoginScreen.xml:19`.
+- May need replacing with the TV icon for branding consistency.
+
 **Entitlements:**
 - `Kodi.entitlements.in` and `TopShelf.entitlements.in` — removed `com.apple.security.application-groups`
 
