@@ -601,7 +601,9 @@ public:
   /*! \brief retrieve subpaths of a given path.  Assumes a hierarchical folder structure
    \param basepath the root path to retrieve subpaths for
    \param subpaths the returned subpaths
-   \param excludeDiscPaths exclude disc paths that contain VIDEO_TS.IFO or INDEX.BDMV (default true)
+   \param excludeDiscPaths true - exclude disc paths that contain VIDEO_TS.IFO or INDEX.BDMV
+                             (default)
+                           false - include encoded paths for cleaning (eg. bluray://, zip:// etc.)
    \return true if we successfully retrieve subpaths (may be zero), false on error
    */
   bool GetSubPaths(const std::string& basepath,
@@ -644,6 +646,8 @@ public:
   void GetTvShowsByName(const std::string& strSearch, CFileItemList& items);
   void GetEpisodesByName(const std::string& strSearch, CFileItemList& items);
   void GetMusicVideosByName(const std::string& strSearch, CFileItemList& items);
+
+  void GetMovieExtrasByName(const std::string& strSearch, CFileItemList& items);
 
   std::string GetPlotByShowId(int idShow);
   void GetEpisodesByPlot(const std::string& strSearch, CFileItemList& items);
@@ -977,7 +981,7 @@ public:
                                int idVideoVersion,
                                VideoAssetType assetType);
 
-  void SetDefaultVideoVersion(VideoDbContentType itemType, int dbId, int idFile);
+  bool SetDefaultVideoVersion(VideoDbContentType itemType, int dbId, int idFile);
   void SetVideoVersion(int idFile, int idVideoVersion);
   int AddOrValidateVideoVersionType(const std::string& typeVideoVersion);
   int AddVideoVersionType(const std::string& typeVideoVersion,

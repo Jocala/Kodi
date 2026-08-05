@@ -312,29 +312,46 @@ bool CVideoDatabase::GetSubPaths(const std::string& basepath,
     if (!m_pDB || !m_pDS)
       return false;
 
-    // Generate encoded paths
     std::string path(basepath);
     URIUtils::AddSlashAtEnd(path);
-    CURL url("udf://");
-    url.SetHostName(path);
-    std::string filePath{url.Get()};
-    URIUtils::RemoveSlashAtEnd(filePath);
-    url = CURL("bluray://");
-    url.SetHostName(filePath);
-    std::string isoPath{url.Get()};
-    URIUtils::RemoveSlashAtEnd(isoPath);
-    constexpr size_t udfPrefixLength = 6; // length of "udf://"
-    filePath = filePath.substr(udfPrefixLength); // Remove udf://
 
-    sql = "SELECT idPath, strPath FROM path WHERE (strPath LIKE '%s%%'";
+    const auto startsWith{[this](const std::string& prefix)
+                          {
+                            return PrepareSQL("SUBSTR(strPath,1,%i)='%s'",
+                                              StringUtils::utf8_strlen(prefix), prefix.c_str());
+                          }};
+
+    sql = "SELECT idPath, strPath FROM path WHERE " + startsWith(path);
     if (excludeDiscPaths)
-      sql += " AND idPath NOT IN (SELECT idPath FROM files WHERE strFileName LIKE 'video_ts.ifo')"
-             " AND idPath NOT IN (SELECT idPath FROM files WHERE strFileName LIKE 'index.bdmv')";
-    sql += ") OR (strPath LIKE '%s%%' OR strPath LIKE 'bluray://%s%%'"
-           " OR strPath LIKE 'zip://%s%%' OR strPath LIKE 'rar://%s%%' OR strPath LIKE "
-           "'archive://%s%%')";
-    sql = PrepareSQL(sql, path.c_str(), isoPath.c_str(), filePath.c_str(), filePath.c_str(),
-                     filePath.c_str(), filePath.c_str());
+    {
+      sql += " AND idPath NOT IN (SELECT idPath FROM files WHERE strFileName='video_ts.ifo')"
+             " AND idPath NOT IN (SELECT idPath FROM files WHERE strFileName='index.bdmv')";
+    }
+    else
+    {
+      // Generate encoded paths
+      // Terminal slashes removed as there is an encoded slash immediately prior
+      //  eg. zip://D%3a%5cMovies%5c'
+      CURL url("udf://");
+      url.SetHostName(path);
+      std::string filePath{url.Get()};
+      URIUtils::RemoveSlashAtEnd(filePath);
+      url = CURL("bluray://");
+      url.SetHostName(filePath);
+      std::string blurayIsoPath{url.Get()};
+      URIUtils::RemoveSlashAtEnd(blurayIsoPath);
+      constexpr size_t udfPrefixLength = 6; // length of "udf://"
+      filePath = filePath.substr(udfPrefixLength); // Remove udf://
+
+      // Return encoded media paths for content removal
+      // clang format-off
+      for (const std::string& prefix : {blurayIsoPath, "bluray://" + filePath, "zip://" + filePath,
+                                        "rar://" + filePath, "archive://" + filePath})
+      {
+        sql += " OR " + startsWith(prefix);
+      }
+      // clang format-on
+    }
 
     m_pDS->query(sql);
     while (!m_pDS->eof())
@@ -9800,6 +9817,75 @@ void CVideoDatabase::GetMusicVideoDirectorsByName(const std::string& strSearch, 
   }
 }
 
+void CVideoDatabase::GetMovieExtrasByName(const std::string& name, CFileItemList& items)
+{
+  std::string strSQL;
+
+  try
+  {
+    if (nullptr == m_pDB)
+      return;
+    if (nullptr == m_pDS)
+      return;
+
+    strSQL =
+        PrepareSQL("SELECT movie.idMovie, vvt.name, path.strPath, files.idFile "
+                   "FROM movie "
+                   "  JOIN videoversion vv ON "
+                   "    vv.idMedia = movie.idMovie AND vv.media_type = '%s' AND vv.itemType = %i "
+                   "  JOIN videoversiontype vvt ON "
+                   "    vvt.id = vv.idType AND vvt.itemType = vv.itemType "
+                   "  JOIN files ON files.idFile = vv.idFile "
+                   "  JOIN path ON path.idPath = files.idPath "
+                   "WHERE vvt.name LIKE '%%%s%%'",
+                   MediaTypeMovie, VideoAssetType::EXTRA, name.c_str());
+
+    m_pDS->query(strSQL);
+
+    static const int idxMovieId = m_pDS->fieldIndex("idMovie");
+    static const int idxName = m_pDS->fieldIndex("name");
+    static const int idxPath = m_pDS->fieldIndex("strPath");
+    static const int idxFileId = m_pDS->fieldIndex("idFile");
+
+    if (idxMovieId == -1 || idxName == -1 || idxPath == -1 || idxFileId == -1)
+    {
+      CLog::LogF(LOGERROR, "column index not found");
+      m_pDS->close();
+      return;
+    }
+
+    while (!m_pDS->eof())
+    {
+      if (m_profileManager.GetMasterProfile().getLockMode() != LockMode::EVERYONE &&
+          !g_passwordManager.bMasterUser)
+        if (!g_passwordManager.IsDatabasePathUnlocked(
+                m_pDS->fv(idxPath).get_asString(),
+                *CMediaSourceSettings::GetInstance().GetSources("video")))
+        {
+          m_pDS->next();
+          continue;
+        }
+
+      const int movieId = m_pDS->fv(idxMovieId).get_asInt();
+      const int fileId = m_pDS->fv(idxFileId).get_asInt();
+      std::string path = StringUtils::Format("videodb://movies/titles/{}/{}/{}", movieId,
+                                             VideoAssetType::EXTRA, fileId);
+
+      auto pItem = std::make_shared<CFileItem>(m_pDS->fv(idxName).get_asString());
+      pItem->SetPath(std::move(path));
+      pItem->SetFolder(false);
+      items.Add(std::move(pItem));
+      m_pDS->next();
+    }
+    m_pDS->close();
+  }
+  catch (...)
+  {
+    CLog::LogF(LOGERROR, "({}) failed", strSQL);
+    m_pDS->close();
+  }
+}
+
 void CVideoDatabase::CleanDatabase(CGUIDialogProgressBarHandle* handle,
                                    const std::set<int>& paths,
                                    bool showProgress)
@@ -12430,23 +12516,44 @@ bool CVideoDatabase::ConvertVideoToVersion(VideoDbContentType itemType,
   if (dbIdSource != dbIdTarget)
   {
     // Transfer all assets (versions, extras,...) to the new movie.
-    UpdateAssetsOwner(mediaType, dbIdSource, dbIdTarget);
+    if (!UpdateAssetsOwner(mediaType, dbIdSource, dbIdTarget))
+    {
+      RollbackTransaction();
+      return false;
+    }
 
     // version-level art doesn't need any change.
     // 'movie' art is converted to 'videoversion' art.
-    SetVideoVersionDefaultArt(idFile, dbIdSource, mediaType);
+    if (!SetVideoVersionDefaultArt(idFile, dbIdSource, mediaType))
+    {
+      RollbackTransaction();
+      return false;
+    }
 
     if (itemType == VideoDbContentType::MOVIES)
-      DeleteMovie(dbIdSource, cascadeAction, DeleteMovieHashAction::HASH_PRESERVE);
+    {
+      if (!DeleteMovie(dbIdSource, cascadeAction, DeleteMovieHashAction::HASH_PRESERVE))
+      {
+        RollbackTransaction();
+        return false;
+      }
+    }
   }
 
   // Rename the default version when provided
+  std::string query;
   if (idVideoVersion < 0)
-    ExecuteQuery(
-        PrepareSQL("UPDATE videoversion SET itemType = %i WHERE idFile = %i", assetType, idFile));
+    query =
+        PrepareSQL("UPDATE videoversion SET itemType = %i WHERE idFile = %i", assetType, idFile);
   else
-    ExecuteQuery(PrepareSQL("UPDATE videoversion SET idType = %i, itemType = %i WHERE idFile = %i",
-                            idVideoVersion, assetType, idFile));
+    query = PrepareSQL("UPDATE videoversion SET idType = %i, itemType = %i WHERE idFile = %i",
+                       idVideoVersion, assetType, idFile);
+
+  if (!ExecuteQuery(query))
+  {
+    RollbackTransaction();
+    return false;
+  }
 
   CommitTransaction();
 
@@ -12500,17 +12607,19 @@ bool CVideoDatabase::AddOrUpdateVideoVersion(VideoDbContentType itemType,
   return false;
 }
 
-void CVideoDatabase::SetDefaultVideoVersion(VideoDbContentType itemType, int dbId, int idFile)
+bool CVideoDatabase::SetDefaultVideoVersion(VideoDbContentType itemType, int dbId, int idFile)
 {
   if (!m_pDB || !m_pDS)
-    return;
+    return false;
 
   std::string path = GetFileBasePathById(idFile);
   if (path.empty())
-    return;
+    return false;
 
   try
   {
+    BeginTransaction();
+
     if (itemType == VideoDbContentType::MOVIES)
     {
       const int idOldFile{
@@ -12533,11 +12642,16 @@ void CVideoDatabase::SetDefaultVideoVersion(VideoDbContentType itemType, int dbI
                                MediaTypeMovie, dbId, idFile, MediaTypeVideoVersion));
       }
     }
+
+    CommitTransaction();
+    return true;
   }
   catch (...)
   {
     CLog::LogF(LOGERROR, "failed for video {}", dbId);
+    RollbackTransaction();
   }
+  return false;
 }
 
 bool CVideoDatabase::IsDefaultVideoVersion(int idFile)
