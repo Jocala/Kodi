@@ -71,6 +71,17 @@
     </category>
   </section>
   <section id="interface">
+    <category id="screensaver">
+      <visible>false</visible>
+      <group id="1">
+        <setting id="screensaver.mode">
+          <default></default>
+        </setting>
+        <setting id="screensaver.usedimonpause">
+          <default>false</default>
+        </setting>
+      </group>
+    </category>
     <category id="skin">
       <group id="1">
         <setting id="lookandfeel.skin" type="addon">

@@ -40,6 +40,9 @@ private:
   void OnBackup();
   void OnRestore();
 
+  std::string ResolveUserdataPath(const std::string& fullPath, const SMBConfig& config,
+                                  std::string& diag);
+
   static constexpr int CONTROL_EDIT_SERVER = 10;
   static constexpr int CONTROL_EDIT_USERNAME = 11;
   static constexpr int CONTROL_EDIT_PASSWORD = 12;

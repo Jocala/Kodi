@@ -261,6 +261,9 @@ private:
   // early inertial scroll cancellation
   bool m_waitForScrollEnd = false;
   float m_lastScrollValue = 0.0f;
+
+  // home sidebar tap-to-focus tracking
+  int m_lastHomeClickItem = -1;
 };
 
 

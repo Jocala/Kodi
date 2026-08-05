@@ -512,7 +512,8 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
     if (child)
     {
       CPoint renderPos = child->GetRenderPosition() - CPoint(child->GetXPosition(), child->GetYPosition());
-      return child->OnMouseEvent(mousePoint - renderPos, event);
+      if (child->OnMouseEvent(mousePoint - renderPos, event) != EVENT_RESULT_UNHANDLED)
+        return EVENT_RESULT_HANDLED;
     }
   }
 

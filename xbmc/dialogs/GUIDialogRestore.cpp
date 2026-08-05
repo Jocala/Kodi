@@ -231,6 +231,67 @@ void CGUIDialogRestore::OnBrowse()
   }
 }
 
+std::string CGUIDialogRestore::ResolveUserdataPath(const std::string& fullPath,
+                                                    const SMBConfig& config,
+                                                    std::string& diag)
+{
+  auto D = [&diag](const std::string& msg) { diag += msg + "\n"; };
+
+  D("Resolver: inspecting " + fullPath);
+
+  std::string smbUrl = StringUtils::Format("smb://{}:{}@{}/{}", config.username,
+                                             config.password, config.host, fullPath);
+  CFileItemList items;
+  if (!XFILE::CDirectory::GetDirectory(smbUrl, items, "", XFILE::DIR_FLAG_DEFAULTS))
+  {
+    D("Resolver: cannot list folder");
+    return "";
+  }
+
+  bool hasUserdataSubfolder = false;
+  bool hasDatabaseFolder = false;
+  bool hasGuiSettings = false;
+  bool hasAddonData = false;
+
+  for (int i = 0; i < items.Size(); i++)
+  {
+    std::string itemPath = items[i]->GetPath();
+    URIUtils::RemoveSlashAtEnd(itemPath);
+    std::string name = URIUtils::GetFileName(itemPath);
+
+    if (items[i]->IsFolder())
+    {
+      if (name == "userdata")
+        hasUserdataSubfolder = true;
+      if (name == "Database")
+        hasDatabaseFolder = true;
+      if (name == "addon_data")
+        hasAddonData = true;
+    }
+    else if (name == "guisettings.xml")
+    {
+      hasGuiSettings = true;
+    }
+  }
+
+  // Layout 1: full Kodi backup — has a userdata/ subfolder
+  if (hasUserdataSubfolder)
+  {
+    D("Resolver: full Kodi backup layout (has userdata/)");
+    return URIUtils::AddFileToFolder(fullPath, "userdata");
+  }
+
+  // Layout 2: direct userdata folder — has Database + guisettings.xml + addon_data
+  if (hasDatabaseFolder && hasGuiSettings && hasAddonData)
+  {
+    D("Resolver: direct userdata folder layout");
+    return fullPath;
+  }
+
+  D("Resolver: doesn't match any known layout");
+  return "";
+}
+
 void CGUIDialogRestore::OnSave()
 {
   SMBConfig config = ReadFields();
@@ -360,6 +421,31 @@ void CGUIDialogRestore::OnRestore()
   if (!config.selected.empty())
     fullPath = URIUtils::AddFileToFolder(fullPath, config.selected);
   D("host=" + config.host + " fullPath=" + fullPath);
+
+  // Resolve the selected folder to the actual userdata content.
+  // Handles two layouts: full Kodi backup (has userdata/ subfolder)
+  // or direct userdata folder (has Database/ + guisettings.xml + addon_data/).
+  std::string resolvedPath = ResolveUserdataPath(fullPath, config, diag);
+  if (resolvedPath.empty())
+  {
+    D("FAILED: selected folder doesn't look like a valid backup or userdata");
+    {
+      XFILE::CFile f;
+      if (f.OpenForWrite("special://home/restore_diag.txt", true))
+      {
+        f.Write(diag.c_str(), diag.size());
+        f.Close();
+      }
+    }
+    HELPERS::ShowOKDialogText(CVariant{"Restore"},
+                              CVariant{"This doesn't look like a valid Kodi backup or userdata "
+                                       "folder.\n\nA backup must contain either:\n- A 'userdata' "
+                                       "folder (full Kodi backup), or\n- Database/, "
+                                       "guisettings.xml, addon_data/ (userdata folder directly)"});
+    return;
+  }
+  fullPath = resolvedPath;
+  D("resolved fullPath=" + fullPath);
 
   SaveConfig(config);
   D("config saved");
@@ -511,41 +597,79 @@ void CGUIDialogRestore::OnRestore()
     return;
   }
 
-  // List temp directory contents for diagnostics
-  D("listing temp dir contents:");
+  // Validate copied data has required userdata markers before destructive swap
+  D("validating copied data...");
   {
-    CFileItemList tmpItems;
-    XFILE::CDirectory::GetDirectory(tmpPath, tmpItems, "", XFILE::DIR_FLAG_DEFAULTS);
-    for (int i = 0; i < tmpItems.Size(); i++)
+    CFileItemList validItems;
+    bool hasDb = false;
+    bool hasGui = false;
+    if (XFILE::CDirectory::GetDirectory(tmpPath, validItems, "", XFILE::DIR_FLAG_DEFAULTS))
     {
-      std::string p = tmpItems[i]->GetPath();
-      URIUtils::RemoveSlashAtEnd(p);
-      D("  " + URIUtils::GetFileName(p));
+      for (int i = 0; i < validItems.Size(); i++)
+      {
+        std::string itemPath = validItems[i]->GetPath();
+        URIUtils::RemoveSlashAtEnd(itemPath);
+        std::string name = URIUtils::GetFileName(itemPath);
+        if (name == "Database")
+          hasDb = true;
+        if (name == "guisettings.xml")
+          hasGui = true;
+        D("  " + name);
+      }
+    }
+    D("validation: Database=" + std::to_string(hasDb) + " guisettings=" + std::to_string(hasGui));
+    if (!hasDb || !hasGui)
+    {
+      D("FAILED: copied data missing required userdata markers");
+      XFILE::CDirectory::RemoveRecursive(tmpPath);
+      HELPERS::ShowOKDialogText(
+          CVariant{"Restore"},
+          CVariant{"The copied data is missing required userdata files "
+                   "(Database/, guisettings.xml).\n\n"
+                   "The selected folder may not be a valid backup."});
+      return;
     }
   }
 
-  // Atomic swap: delete userdata, rename temp to userdata
+  // Rollback-safe atomic swap
   D("swapping temp -> userdata");
-  std::string realHome = CSpecialProtocol::TranslatePath("special://home/");
   std::string realUserdata = CSpecialProtocol::TranslatePath("special://home/userdata/");
   std::string realTmp = CSpecialProtocol::TranslatePath("special://home/userdata_restore_tmp/");
-  D("  real home: " + realHome);
   D("  real userdata: " + realUserdata);
   D("  real tmp: " + realTmp);
 
-  XFILE::CDirectory::RemoveRecursive(realUserdata);
-  bool renamed = (std::rename(realTmp.c_str(), realUserdata.c_str()) == 0);
-  D("  rename result: " + std::to_string(renamed));
+  // Move current userdata aside before replacing (don't delete until new one is in place)
+  std::string backupUserdata = realUserdata;
+  URIUtils::RemoveSlashAtEnd(backupUserdata);
+  backupUserdata += ".restorebak";
 
-  if (progress)
-    progress->Close();
-
-  if (!copyOk)
+  XFILE::CDirectory::RemoveRecursive(backupUserdata); // clean previous .restorebak if any
+  bool moved = (std::rename(realUserdata.c_str(), backupUserdata.c_str()) == 0);
+  if (!moved)
   {
-    D("FAILED: CopyDirectory reported errors");
-    HELPERS::ShowOKDialogText(CVariant{"Restore"}, CVariant{"Some files failed to copy"});
+    D("FAILED: could not rename userdata to .restorebak (directory may be in use)");
+    HELPERS::ShowOKDialogText(
+        CVariant{"Restore"},
+        CVariant{"Could not replace userdata — the directory is in use.\n\n"
+                 "Please close any file operations and try again."});
     return;
   }
+  D("  renamed userdata -> userdata.restorebak");
+
+  bool renamed = (std::rename(realTmp.c_str(), realUserdata.c_str()) == 0);
+  if (!renamed)
+  {
+    D("FAILED: rename tmp -> userdata failed, rolling back");
+    std::rename(backupUserdata.c_str(), realUserdata.c_str());
+    HELPERS::ShowOKDialogText(CVariant{"Restore"},
+                              CVariant{"Could not replace userdata directory."});
+    return;
+  }
+  D("  renamed tmp -> userdata");
+
+  // Clean up the old backup
+  XFILE::CDirectory::RemoveRecursive(backupUserdata);
+  D("  removed .restorebak");
 
   // Write full diag
   {

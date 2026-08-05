@@ -16,6 +16,9 @@
 #include "ServiceBroker.h"
 #include "guilib/GUIListItem.h"
 #include "guilib/guiinfo/GUIInfoLabels.h"
+#include "guilib/GUIComponent.h"
+#include "guilib/GUIWindowManager.h"
+#include "guilib/WindowIDs.h"
 #include "guilib/listproviders/IListProvider.h"
 #include "input/actions/Action.h"
 #include "input/actions/ActionIDs.h"
@@ -118,7 +121,8 @@ CGUIBaseContainer::CGUIBaseContainer(const CGUIBaseContainer& other)
     m_scrollItemsPerFrame(other.m_scrollItemsPerFrame),
     m_gestureActive(other.m_gestureActive),
     m_waitForScrollEnd(other.m_waitForScrollEnd),
-    m_lastScrollValue(other.m_lastScrollValue)
+    m_lastScrollValue(other.m_lastScrollValue),
+    m_lastHomeClickItem(other.m_lastHomeClickItem)
 {
   // Initialize CGUIControl
   m_bInvalidated = true;
@@ -823,8 +827,30 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
     int select = GetSelectedItem();
     if (SelectItemFromPoint(point - CPoint(m_posX, m_posY)))
     {
-      if (event.m_id != ACTION_MOUSE_RIGHT_CLICK || select == GetSelectedItem())
+      const bool isHomeSidebar =
+          CServiceBroker::GetGUI()->GetWindowManager().GetActiveWindow() == WINDOW_HOME &&
+          GetID() == 9000;
+
+      if (isHomeSidebar && event.m_id == ACTION_MOUSE_LEFT_CLICK)
+      {
+        // Tap-to-focus, tap-again-to-enter on the home sidebar.
+        // The first tap on an item focuses it (showing its widget panel)
+        // without activating. A second tap on the same item activates it.
+        int current = GetSelectedItem();
+        if (current == m_lastHomeClickItem)
+        {
+          OnClick(event.m_id);
+          m_lastHomeClickItem = -1;
+        }
+        else
+        {
+          m_lastHomeClickItem = current;
+        }
+      }
+      else if (event.m_id != ACTION_MOUSE_RIGHT_CLICK || select == GetSelectedItem())
+      {
         OnClick(event.m_id);
+      }
       return EVENT_RESULT_HANDLED;
     }
   }
@@ -853,6 +879,15 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
   }
   else if (event.m_id == ACTION_GESTURE_PAN)
   { // do the drag and validate our offset (corrects for end of scroll)
+    // Only handle pans aligned with the container's orientation.
+    // Perpendicular pans are passed up to the parent (e.g. a vertical
+    // grouplist can scroll through horizontal panel children).
+    {
+      bool verticalPan = std::fabs(event.m_offsetY) > std::fabs(event.m_offsetX);
+      bool verticalContainer = (m_orientation == VERTICAL);
+      if (verticalPan != verticalContainer)
+        return EVENT_RESULT_UNHANDLED;
+    }
     m_scroller.SetValue(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY));
     float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
     int offset = MathUtils::round_int(static_cast<double>(m_scroller.GetValue() / size));
