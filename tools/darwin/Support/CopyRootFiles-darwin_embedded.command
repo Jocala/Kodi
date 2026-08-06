@@ -20,6 +20,9 @@ ADDONSYNC="rsync -aq --no-links --exclude .git* --exclude CVS* --exclude .svn* -
 mv $TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/$EXECUTABLE_NAME.bin $TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/$EXECUTABLE_NAME
 
 mkdir -p "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/AppData/AppHome"
+# wipe stale addons so removed/renamed addons don't persist across builds
+# (rsync below does not use --delete)
+rm -rf "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/AppData/AppHome/addons"
 mkdir -p "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/AppData/AppHome/addons"
 mkdir -p "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/AppData/AppHome/media"
 mkdir -p "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/AppData/AppHome/system"

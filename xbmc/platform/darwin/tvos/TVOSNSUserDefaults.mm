@@ -213,6 +213,58 @@ bool CTVOSNSUserDefaults::KeyExists(const std::string& key)
   return false;
 }
 
+void CTVOSNSUserDefaults::DeleteKeysWithPrefix(const std::string& prefix, bool synchronize)
+{
+  if (prefix.empty())
+    return;
+
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+  NSDictionary<NSString*, id>* dict = [defaults dictionaryRepresentation];
+  NSString* nsPrefix = @(prefix.c_str());
+
+  for (NSString* aKey in dict.allKeys)
+  {
+    if ([aKey hasPrefix:nsPrefix])
+      [defaults removeObjectForKey:aKey];
+  }
+
+  if (synchronize)
+    [defaults synchronize];
+}
+
+void CTVOSNSUserDefaults::MoveKeysWithPrefix(const std::string& fromPrefix,
+                                             const std::string& toPrefix,
+                                             bool synchronize)
+{
+  if (fromPrefix.empty() || toPrefix.empty() || fromPrefix == toPrefix)
+    return;
+
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+  NSDictionary<NSString*, id>* dict = [defaults dictionaryRepresentation];
+  NSString* nsFromPrefix = @(fromPrefix.c_str());
+  NSString* nsToPrefix = @(toPrefix.c_str());
+  NSMutableArray<NSString*>* keys = [NSMutableArray array];
+
+  for (NSString* aKey in dict.allKeys)
+  {
+    if (![aKey hasPrefix:nsFromPrefix])
+      continue;
+
+    NSString* rest = [aKey substringFromIndex:nsFromPrefix.length];
+    NSString* newKey = [nsToPrefix stringByAppendingString:rest];
+    id obj = [defaults objectForKey:aKey];
+    if (obj)
+      [defaults setObject:obj forKey:newKey];
+    [keys addObject:aKey];
+  }
+
+  for (NSString* aKey in keys)
+    [defaults removeObjectForKey:aKey];
+
+  if (synchronize)
+    [defaults synchronize];
+}
+
 bool CTVOSNSUserDefaults::IsKeyFromPath(const std::string& path)
 {
   std::string translated_key;

@@ -28,7 +28,7 @@ EXPORT_OPTS="$BUILD_DIR/TestFlight/ExportOptions.plist"
 echo "=== 1. Regenerate Xcode project ==="
 make -C "$KODI_SRC/tools/depends/target/cmakebuildsys" \
   BUILD_DIR="$BUILD_DIR" \
-  CMAKE_EXTRA_ARGUMENTS="-DENABLE_PVR=ON -DENABLE_GAMES=ON -DENABLE_PYTHON=OFF -DPLATFORM_BUNDLE_IDENTIFIER=$BUNDLE_ID -DDEVELOPMENT_TEAM=$DEV_TEAM"
+  CMAKE_EXTRA_ARGUMENTS="-DENABLE_PVR=ON -DENABLE_GAMES=ON -DENABLE_PYTHON=ON -DPLATFORM_BUNDLE_IDENTIFIER=$BUNDLE_ID -DDEVELOPMENT_TEAM=$DEV_TEAM"
 
 echo ""
 echo "=== 2. Set version (marketing: $MARKETING_VERSION, build: $BUILD_NUMBER) ==="
@@ -55,16 +55,16 @@ echo ""
 echo "=== 4. Strip App Store-objectionable files ==="
 # App Store validation (code 90171) rejects standalone Mach-O .so binaries in
 # the bundle. We delete ONLY the .so files — NOT the addon directories. Kodi's
-# addon-manifest.xml requires script.module.pil (and other system addons) to be
-# present and enabled at startup; deleting the whole addon makes
-# CAddonMgr::Init fail and Kodi exits ("Unable to create application. Exiting").
-# Keeping addon.xml + .py sources satisfies Kodi; the .so files are what Apple
-# rejects. libdvdnav-aarch64.so is not in the manifest and is only used for DVD
+# addon-manifest.xml requires system addons to be present and enabled at
+# startup; deleting a whole addon directory makes CAddonMgr::Init fail and Kodi
+# exits ("Unable to create application. Exiting"). Keeping addon.xml + .py
+# sources satisfies Kodi; the .so files are what Apple rejects.
+# libdvdnav-aarch64.so is not in the manifest and is only used for DVD
 # playback, so removing it is safe for an SMB media player.
 echo "  deleting .so binaries under AppData/AppHome"
 find "$APP_PATH/AppData/AppHome" -name "*.so" -delete
-echo "  removing empty Frameworks/lib"
-rm -rf "$APP_PATH/Frameworks/lib"
+echo "  deleting python native .so under Frameworks/lib"
+find "$APP_PATH/Frameworks/lib" -name "*.so" -delete
 # UIFileSharingEnabled is fixed to boolean true in the source Info.plist.in.
 
 echo ""

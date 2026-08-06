@@ -4045,7 +4045,7 @@
             <addontype>xbmc.gui.skin</addontype>
           </constraints>
           <control type="button" format="addon">
-            <show more="true" details="true">installed</show>
+            <show details="true">installed</show>
           </control>
         </setting>
         <setting id="lookandfeel.skinsettings" type="action" parent="lookandfeel.skin" label="14261" help="36104">

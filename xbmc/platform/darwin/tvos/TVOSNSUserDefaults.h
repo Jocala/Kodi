@@ -26,6 +26,10 @@ public:
                          bool synchronize);
   static bool DeleteKey(const std::string& key, bool synchronize);
   static bool KeyExists(const std::string& key);
+  static void DeleteKeysWithPrefix(const std::string& prefix, bool synchronize);
+  static void MoveKeysWithPrefix(const std::string& fromPrefix,
+                                 const std::string& toPrefix,
+                                 bool synchronize);
 
   static bool IsKeyFromPath(const std::string& key);
   static bool GetKeyFromPath(const std::string& path, std::string& value);

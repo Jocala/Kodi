@@ -535,7 +535,7 @@ void CSMB::Init()
       m_context = NULL;
     }
   }
-  m_IdleTimeout = 180;
+  m_IdleTimeout = 1800;
 }
 
 std::string CSMB::URLEncode(const CURL& url)
@@ -612,9 +612,9 @@ void CSMB::CheckIfIdle()
 
 void CSMB::SetActivityTime()
 {
-  /* Since we get called every 500ms from ProcessSlow we limit the tick count to 180 */
-  /* That means we have 2 ticks per second which equals 180/2 == 90 seconds */
-  m_IdleTimeout = 180;
+  /* Since we get called every 500ms from ProcessSlow we limit the tick count to 1800 */
+  /* That means we have 2 ticks per second which equals 1800/2 == 15 minutes */
+  m_IdleTimeout = 1800;
 }
 
 /* The following two function is used to keep track on how many Opened files/directories there are.
@@ -630,7 +630,7 @@ void CSMB::AddIdleConnection()
   m_OpenConnections--;
   /* If we close a file we reset the idle timer so that we don't have any weird behaviours if a user
      leaves the movie paused for a long while and then press stop */
-  m_IdleTimeout = 180;
+  m_IdleTimeout = 1800;
 }
 
 CURL CSMB::GetResolvedUrl(const CURL& url)

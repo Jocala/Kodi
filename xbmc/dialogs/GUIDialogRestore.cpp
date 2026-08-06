@@ -34,6 +34,12 @@
 #include <chrono>
 #include <cstdio>
 
+// clang-format off
+#if defined(TARGET_DARWIN_TVOS)
+#include "platform/darwin/tvos/TVOSNSUserDefaults.h"
+#endif
+// clang-format on
+
 using namespace KODI::MESSAGING;
 
 static const std::string CONFIG_PATH = "special://home/smb_restore.json";
@@ -511,6 +517,10 @@ void CGUIDialogRestore::OnRestore()
   // Copy all files to a temp directory (no conflicts with running Kodi)
   std::string tmpPath = "special://home/userdata_restore_tmp/";
   D("copying to " + tmpPath);
+#if defined(TARGET_DARWIN_TVOS)
+  // Drop any leftover xml keys from a previous restore attempt before copying
+  CTVOSNSUserDefaults::DeleteKeysWithPrefix("/userdata_restore_tmp/", true);
+#endif
   XFILE::CDirectory::RemoveRecursive(tmpPath);
   XFILE::CDirectory::Create(tmpPath);
   SMBConfig restoreConfig = config;
@@ -600,23 +610,13 @@ void CGUIDialogRestore::OnRestore()
   // Validate copied data has required userdata markers before destructive swap
   D("validating copied data...");
   {
-    CFileItemList validItems;
-    bool hasDb = false;
-    bool hasGui = false;
-    if (XFILE::CDirectory::GetDirectory(tmpPath, validItems, "", XFILE::DIR_FLAG_DEFAULTS))
-    {
-      for (int i = 0; i < validItems.Size(); i++)
-      {
-        std::string itemPath = validItems[i]->GetPath();
-        URIUtils::RemoveSlashAtEnd(itemPath);
-        std::string name = URIUtils::GetFileName(itemPath);
-        if (name == "Database")
-          hasDb = true;
-        if (name == "guisettings.xml")
-          hasGui = true;
-        D("  " + name);
-      }
-    }
+    bool hasDb = XFILE::CDirectory::Exists(URIUtils::AddFileToFolder(tmpPath, "Database"),
+                                           false);
+    // On tvOS guisettings.xml is vectored into NSUserDefaults (not a physical
+    // file), so CFile::Exists (which checks the key via CTVOSFile) is the
+    // reliable probe. It falls back to a real file on other platforms.
+    bool hasGui = XFILE::CFile::Exists(URIUtils::AddFileToFolder(tmpPath, "guisettings.xml"),
+                                       false);
     D("validation: Database=" + std::to_string(hasDb) + " guisettings=" + std::to_string(hasGui));
     if (!hasDb || !hasGui)
     {
@@ -666,6 +666,22 @@ void CGUIDialogRestore::OnRestore()
     return;
   }
   D("  renamed tmp -> userdata");
+
+#if defined(TARGET_DARWIN_TVOS)
+  // tvOS vectors *.xml into NSUserDefaults keyed by their userdata path, while
+  // everything else lives as real files in Caches. The physical renames above
+  // leave the keyed xml untouched, so:
+  //  1. drop the settings we are replacing (/userdata/*),
+  //  2. move xml written into the temp dir keys to their final /userdata/* keys
+  //     (e.g. guisettings.xml, which was copied via XFILE::CFile -> CTVOSFile),
+  //  3. vector any restored *.xml that only exists as a physical file into
+  //     NSUserDefaults so the restore survives a Caches purge.
+  D("syncing tvOS xml persistence");
+  CTVOSNSUserDefaults::DeleteKeysWithPrefix("/userdata/", false);
+  CTVOSNSUserDefaults::MoveKeysWithPrefix("/userdata_restore_tmp/", "/userdata/", true);
+  SyncTVOSXmlPersistence(realUserdata, diag);
+  D("tvOS xml persistence synced");
+#endif
 
   // Clean up the old backup
   XFILE::CDirectory::RemoveRecursive(backupUserdata);
@@ -828,3 +844,62 @@ bool CGUIDialogRestore::UploadDirectory(const std::string& localPath, const std:
   }
   return true;
 }
+
+#if defined(TARGET_DARWIN_TVOS)
+void CGUIDialogRestore::SyncTVOSXmlPersistence(const std::string& realDir, std::string& diag)
+{
+  auto D = [&diag](const std::string& msg) { diag += msg + "\n"; };
+
+  CFileItemList items;
+  if (!XFILE::CDirectory::GetDirectory(realDir, items, "", XFILE::DIR_FLAG_DEFAULTS))
+    return;
+
+  for (int i = 0; i < items.Size(); i++)
+  {
+    const auto& item = items[i];
+    std::string itemPath = item->GetPath();
+    URIUtils::RemoveSlashAtEnd(itemPath);
+    std::string name = URIUtils::GetFileName(itemPath);
+
+    if (item->IsFolder())
+    {
+      if (name != "." && name != ".." && name != "Database" && name != "Thumbnails")
+        SyncTVOSXmlPersistence(itemPath, diag);
+      continue;
+    }
+
+    if (!StringUtils::EqualsNoCase(URIUtils::GetExtension(itemPath), ".xml"))
+      continue;
+
+    // Skip xml that already has an NSUserDefaults key (e.g. guisettings.xml
+    // moved over from the temp dir above).
+    if (CTVOSNSUserDefaults::KeyFromPathExists(itemPath))
+      continue;
+
+    FILE* f = fopen(itemPath.c_str(), "rb");
+    if (!f)
+      continue;
+
+    std::string data;
+    char buf[65536];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+      data.append(buf, n);
+    fclose(f);
+
+    if (data.empty())
+      continue;
+
+    if (CTVOSNSUserDefaults::SetKeyDataFromPath(itemPath, data.data(), data.size(), true))
+    {
+      // Remove the physical copy so CTVOSDirectory doesn't list it twice.
+      std::remove(itemPath.c_str());
+      D("  vectored " + name + " -> NSUserDefaults");
+    }
+    else
+    {
+      D("  FAILED to vector " + name + " -> NSUserDefaults");
+    }
+  }
+}
+#endif

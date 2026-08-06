@@ -106,7 +106,6 @@
 					<icon>icons/settings/games.png</icon>
 				</item>
 				<item>
-					<visible>false</visible>
 					<label>$LOCALIZE[14206]</label>
 					<onclick>ActivateWindow(InterfaceSettings)</onclick>
 					<icon>icons/settings/interface.png</icon>

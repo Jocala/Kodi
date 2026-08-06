@@ -2752,30 +2752,64 @@ CVideoInfoScanner::~CVideoInfoScanner()
       const std::string& strPath,
       UseRemoteArtWithLocalScraper useRemoteArt /* = YES */) const
   {
-    CFileItemList items;
-    // don't try to fetch anything local with plugin source
+    // Cache the .actors directory listing across movies in the same folder.
+    // Without this every movie in the same directory re-lists the same
+    // .actors folder (8527 entries -> ~750 ms on tvOS via SMB, under the
+    // global smb lock). With 281 movies that is ~3.5 min of serialized I/O.
+    // The scan is single-threaded, but guard the cache with a lock for
+    // correctness if called from other threads.
+    static CCriticalSection s_actorsCacheSection;
+    static std::string s_cachedActorsDir;
+    static std::unordered_map<std::string, std::string> s_nameToPath;
+
+    std::unordered_map<std::string, std::string> nameToPath;
+    bool haveActorsListing = false;
+
     if (!URIUtils::IsPlugin(strPath))
     {
       std::string actorsDir = URIUtils::AddFileToFolder(strPath, ".actors");
-      if (CDirectory::Exists(actorsDir))
-        CDirectory::GetDirectory(actorsDir, items, ".png|.jpg|.tbn", DIR_FLAG_NO_FILE_DIRS |
-                                 DIR_FLAG_NO_FILE_INFO);
+      {
+        std::unique_lock lock(s_actorsCacheSection);
+        if (actorsDir == s_cachedActorsDir && !s_nameToPath.empty())
+        {
+          nameToPath = s_nameToPath;
+          haveActorsListing = true;
+        }
+      }
+      if (!haveActorsListing)
+      {
+        if (CDirectory::Exists(actorsDir))
+        {
+          CFileItemList dirItems;
+          CDirectory::GetDirectory(actorsDir, dirItems, ".png|.jpg|.tbn",
+                                   DIR_FLAG_NO_FILE_DIRS | DIR_FLAG_NO_FILE_INFO);
+          nameToPath.reserve(dirItems.Size() * 2);
+          for (int j = 0; j < dirItems.Size(); j++)
+          {
+            std::string compare = URIUtils::GetFileName(dirItems[j]->GetPath());
+            URIUtils::RemoveExtension(compare);
+            if (nameToPath.find(compare) == nameToPath.end())
+              nameToPath[compare] = dirItems[j]->GetPath();
+          }
+          haveActorsListing = true;
+          std::unique_lock lock(s_actorsCacheSection);
+          s_cachedActorsDir = actorsDir;
+          s_nameToPath = nameToPath;
+        }
+      }
     }
+
     for (std::vector<SActorInfo>::iterator i = actors.begin(); i != actors.end(); ++i)
     {
       if (i->thumb.empty())
       {
         std::string thumbFile = i->strName;
         StringUtils::Replace(thumbFile, ' ', '_');
-        for (int j = 0; j < items.Size(); j++)
+        if (haveActorsListing)
         {
-          std::string compare = URIUtils::GetFileName(items[j]->GetPath());
-          URIUtils::RemoveExtension(compare);
-          if (!items[j]->IsFolder() && compare == thumbFile)
-          {
-            i->thumb = items[j]->GetPath();
-            break;
-          }
+          auto it = nameToPath.find(thumbFile);
+          if (it != nameToPath.end())
+            i->thumb = it->second;
         }
         if (!i->thumbUrl.GetFirstUrlByType().m_url.empty())
         {

@@ -65,13 +65,22 @@ Produce a minimal Kodi build for **Apple TV (tvOS)** with network-based userdata
 - `RepositoryUpdater.cpp` — `Start()` and `ScheduleUpdate()` are no-ops (no repo polling)
 
 **SMB Restore feature (new):**
-- `xbmc/settings/RestoreManager.h` / `.cpp` — standalone restore logic (prompt for SMB config, copy userdata, fix guisettings.xml, quit)
-- `xbmc/dialogs/GUIDialogRestore.h` / `.cpp` — GUI dialog with edit fields for host/username/password/sharepath + Save/Restore/Cancel
+- `xbmc/dialogs/GUIDialogRestore.h` / `.cpp` — GUI dialog with edit fields for host/username/password/sharepath + Save/Restore/Cancel (the old `xbmc/settings/RestoreManager.{h,cpp}` standalone path was **removed** — dead code, never wired into the build)
 - `addons/skin.estuary/xml/DialogRestore.xml` — skin layout for the dialog
 - `xbmc/guilib/WindowIDs.h` — added `WINDOW_DIALOG_RESTORE` (10161)
 - `xbmc/input/WindowTranslator.cpp` — added `"dialogrestore"` mapping
 - `xbmc/guilib/GUIWindowManager.cpp` — registers `CGUIDialogRestore`
-- `xbmc/interfaces/builtins/SystemBuiltins.cpp` — added `restorefromnetwork` builtin command
+- `xbmc/interfaces/builtins/SystemBuiltins.cpp` — added `restorefromnetwork` builtin; it opens `CGUIDialogRestore`
+
+**tvOS restore / NSUserDefaults xml persistence (2026-08-06):**
+- tvOS vectors `*.xml` under `special://home/userdata` into NSUserDefaults keys `/userdata/*` (`CTVOSFile`/`CTVOSNSUserDefaults`), while DBs/thumbnails etc. are real files in `Library/Caches/Kodi`. A physical `std::rename` swap of `userdata` doesn't move those keys.
+- Restore now copies to `userdata_restore_tmp/`, then after the physical swap does (all tvOS-only, in `GUIDialogRestore.cpp`):
+  1. `CTVOSNSUserDefaults::DeleteKeysWithPrefix("/userdata/")` — drop replaced settings
+  2. `MoveKeysWithPrefix("/userdata_restore_tmp/", "/userdata/")` — guisettings.xml (copied via `XFILE::CFile` → keyed)
+  3. `SyncTVOSXmlPersistence()` — recursively vectors any restored physical `.xml` into `/userdata/*` keys and deletes the physical copy (skips `Database/`, `Thumbnails/`); keeps xml durable across a Caches purge and avoids duplicate listings
+- Validation probes: `Database/` via `CDirectory::Exists`, `guisettings.xml` via `CFile::Exists` (checks the key through `CTVOSFile`), with `bUseCache=false`.
+- New helpers: `CTVOSNSUserDefaults::DeleteKeysWithPrefix` / `MoveKeysWithPrefix` (`TVOSNSUserDefaults.{h,mm}`).
+- Verified: restore from `smb://192.168.1.39/storage/kodi/backup-08-03-26` replaced userdata fully — 35 `/userdata/*` xml keys, all 14 DBs physical, no `/userdata_restore_tmp/` leftovers, app relaunches clean.
 
 **UI simplified (skin.estuary):**
 - `Home.xml` — TV, Radio, Games, Addons, Pictures, Weather sidebar items all hidden (`<visible>false</visible>`)
@@ -88,7 +97,6 @@ Produce a minimal Kodi build for **Apple TV (tvOS)** with network-based userdata
 - `Kodi.entitlements.in` and `TopShelf.entitlements.in` — removed `com.apple.security.application-groups`
 
 ### Known Concerns
-- Hardcoded default SMB credentials in `GUIDialogRestore.cpp` (host: `192.168.1.39`, user: `jeff`, password: `xky91234`)
 - SMB URL embeds `username:password@host` in plaintext in logs
 
 ## App Store / TestFlight Build & Upload (2026-07-31)
@@ -99,7 +107,10 @@ and supported bundles.
 
 ### What Apple rejected (now fixed)
 - `script.module.pil` addon — shipped `.so` Python C extensions (`PIL/_imaging*.so`).
-  Useless with `ENABLE_PYTHON=OFF`; deleted entirely from the app bundle.
+  **Removed entirely (2026-08-06)** along with `script.module.pycryptodome`
+  (`Cryptodome/*.so`) — both were unused (no shipped addon imports PIL/Crypto;
+  the TMDB scrapers use only stdlib `urllib`/`ssl`, which are statically linked
+  into the binary via `libpython.a`). See "PIL/pycryptodome removal" below.
 - `system/players/VideoPlayer/libdvdnav-aarch64.so` — DVD navigation; not needed
   for SMB playback; deleted.
 - `Frameworks/lib` — empty dir; deleted.
@@ -107,11 +118,12 @@ and supported bundles.
   boolean `<true/>`. Fixed in `xbmc/platform/darwin/tvos/Info.plist.in:43`.
 
 ### ⚠️ Do NOT delete whole addon directories (crash found 2026-07-31)
-`script.module.pil` is listed as a **required** addon in
+The manifest lists **required** addons in
 `AppData/AppHome/system/addon-manifest.xml`. `CAddonMgr::Init()` (in
-`xbmc/addons/AddonManager.cpp`) hard-fails if it's missing/enabled:
+`xbmc/addons/AddonManager.cpp`) hard-fails if any required addon is missing or
+disabled:
 ```
-critical: addon 'script.module.pil' not installed or not enabled.
+critical: addon '<id>' not installed or not enabled.
 critical: CServiceManager::InitStageTwo: Unable to start CAddonMgr
 error:   ERROR: Unable to create application. Exiting
 ```
@@ -123,6 +135,38 @@ The `build-testflight.sh` strip step therefore deletes **only `.so` files**
 sources so Kodi starts. `libdvdnav-aarch64.so` is NOT in the manifest, so
 deleting it is safe (only used for DVD playback).
 
+### PIL/pycryptodome removal (2026-08-06)
+To get movie/TV scraping working, Python was re-enabled (`ENABLE_PYTHON=ON`) on
+both iOS and tvOS. `script.module.pil` and `script.module.pycryptodome` were
+removed entirely (they were the only Python `.so` carriers and nothing used
+them). Removal points (keep in sync):
+- `tools/depends/target/Makefile` — `pythonmodule-pil`, `pythonmodule-pycryptodome` dropped from `DEPENDS`
+- `system/addon-manifest.xml` — both `<addon>` entries removed
+- `cmake/installdata/common/addons.txt` — both `addons/.../*` install lines removed
+- stub addon dirs `addons/script.module.{pil,pycryptodome}/` deleted
+- installed artifacts deleted from both `appletvos26.4` and `iphoneos26.4`
+  prefixes: `share/Kodi/addons/script.module.pil`, `lib/python3.14/site-packages/Cryptodome`,
+  `.../pycryptodomex-*.egg-info`
+- Python native stdlib modules (`_ssl`, `_socket`, etc.) are **static** in
+  `libpython.a` — `lib-dynload/` is empty, so re-enabling Python adds no new
+  standalone Mach-O binaries. The store strip now also deletes `.so` under
+  `Frameworks/lib` (catches anything native in site-packages).
+
+### `_scproxy` stub (2026-08-06)
+Movie/TV scraping initially failed with `ModuleNotFoundError: No module named
+'_scproxy'`. `urllib/request.py` does `from _scproxy import _get_proxy_settings,
+_get_proxies` when `sys.platform == 'darwin'` (true on iOS/tvOS), but the
+macOS-only SystemConfiguration C extension is disabled for embedded builds
+(`py_cv_module__scproxy=n/a` in `tools/depends/target/python3/Makefile` for
+`darwin_embedded`). Fixed by overlaying a pure-Python `_scproxy.py` stub into
+the packaged stdlib in `tools/darwin/Support/copyframeworks-darwin_embedded.command`
+(runs every app build for both platforms; pure `.py` so App Store safe). Stub
+returns `{'exclude_simple': False, 'exceptions': ()}` (the `exclude_simple` key
+is indexed directly by `urllib/request.py`) and empty proxies.
+
+Also: "Interfaces" settings item (`ActivateWindow(InterfaceSettings)`) was
+restored — removed `<visible>false</visible>` from `addons/skin.estuary/xml/Settings.xml`.
+
 ### Known CMake gotcha
 `xcodebuild archive` on the CMake-generated project produces an **empty**
 `Products/Applications/` (products land in `UninstalledProducts/appletvos/`),
@@ -131,16 +175,17 @@ assembled manually from the built `Kodi.app` (see `build-testflight.sh`).
 
 ### Working pipeline (`build-testflight.sh`)
 1. Regenerate Xcode project via `make -C tools/depends/target/cmakebuildsys`
-   with `-DENABLE_PVR=ON -DENABLE_GAMES=ON -DENABLE_PYTHON=OFF
+   with `-DENABLE_PVR=ON -DENABLE_GAMES=ON -DENABLE_PYTHON=ON
    -DPLATFORM_BUNDLE_IDENTIFIER=com.jocala.kodi -DDEVELOPMENT_TEAM=9Q77WK7W3R`
 2. Set version/build number in the two CMake-generated `Info.plist`s
    (build number = `YYYYMMDD.N` counter stored in `kodi-build/.buildnumber`)
 3. `xcodebuild ... -configuration Release -destination generic/platform=tvOS`
    (delete stale `Kodi.app`/`kodi-topshelf.appex` **symlinks** in
    `kodi-build/build/Release-appletvos/` first, or `MkDir` fails)
-4. Strip `.so` files from `AppData/AppHome` (`find ... -name '*.so' -delete`;
-   keeps addon `addon.xml`+`.py` so the manifest check passes), remove empty
-   `Frameworks/lib`, verify no `.so` left
+4. Strip `.so` files from `AppData/AppHome` **and** `Frameworks/lib`
+   (`find ... -name '*.so' -delete`); keeps the Python stdlib `.py` under
+   `Frameworks/lib/python3.14` (needed at runtime) while removing native
+   extension binaries; verify no `.so` left
 5. Assemble `.xcarchive` by hand (copy `Kodi.app` to `Products/Applications/`,
    write archive `Info.plist` with `ApplicationProperties`)
 6. `xcodebuild -exportArchive ... -exportOptionsPlist ExportOptions.plist
@@ -172,6 +217,10 @@ No app-specific password is stored in keychain; user must supply one.
 - **2026-07-31: build `20260731.5` launched successfully on the Apple TV via
   TestFlight** — after fixing the strip step to delete only `.so` files (PIL
   addon kept). The prior `.4` crashed at launch (manifest check).
+- **2026-08-06: Python re-enabled (`ENABLE_PYTHON=ON`) for movie/TV scraping on
+  iOS + tvOS**; PIL and pycryptodome removed entirely (see "PIL/pycryptodome
+  removal"). Dev installs keep Python's static stdlib; the store strip now also
+  removes `.so` under `Frameworks/lib`.
 - TestFlight gotcha: `xcodebuild -exportArchive` with `destination=upload`
   streams the `.ipa` straight to ASC (no local `.ipa` produced). New builds must
   be manually added to a TestFlight group (`Add to Group`); Automatic
@@ -201,7 +250,7 @@ No app-specific password is stored in keychain; user must supply one.
 | `xbmc/input/` | Input handling, window translator |
 | `xbmc/interfaces/builtins/` | Builtin command operations |
 | `xbmc/platform/darwin/tvos/` | tvOS-specific platform code, entitlements |
-| `xbmc/settings/` | Settings, RestoreManager |
+| `xbmc/settings/` | Settings |
 | `addons/skin.estuary/xml/` | Default skin XML layouts |
 | `cmake/` | CMake modules, scripts, treedata |
 | `tools/depends/` | Dependency builder scripts |
@@ -212,7 +261,7 @@ No app-specific password is stored in keychain; user must supply one.
 mkdir build-tvos && cd build-tvos
 cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/platform/darwin/tvos.toolchain.cmake \
       -DENABLE_PVR=OFF -DENABLE_GAMES=OFF \
-      -DENABLE_PYTHON=OFF \
+      -DENABLE_PYTHON=ON \
       ..
 make -j$(sysctl -n hw.logicalcpu)
 ```

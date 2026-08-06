@@ -313,6 +313,14 @@ bool CVideoThumbLoader::LoadItemLookup(CFileItem* pItem)
       }
     }
 
+    // If stream details for this file already exist in the database, load them
+    // rather than re-extracting them (which requires reading the whole file
+    // over the network and blocks other SMB I/O on the global smb mutex).
+    if (!pItem->HasVideoInfoTag() || !pItem->GetVideoInfoTag()->HasStreamDetails())
+    {
+      m_videoDatabase->GetStreamDetails(*pItem);
+    }
+
     // flag extraction mostly for non-library items - should end up somewhere else,
     // like a VideoInfoLoader if it existed
     bool update = false;

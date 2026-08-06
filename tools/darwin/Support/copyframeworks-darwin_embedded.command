@@ -85,6 +85,15 @@ PYTHONSYNC="rsync -aq --exclude .DS_Store --exclude *.a --exclude *.exe --exclud
 ${PYTHONSYNC} "$EXTERNAL_LIBS/lib/python$PYTHON_VERSION" "$TARGET_FRAMEWORKS/lib/"
 rm -rf "$TARGET_FRAMEWORKS/lib/python$PYTHON_VERSION/config"
 
+# urllib.request imports _scproxy on darwin; it is not built for iOS/tvOS.
+# Provide a pure-python stub returning no proxy configuration.
+printf '%s\n' \
+  'def _get_proxy_settings():' \
+  "    return {'exclude_simple': False, 'exceptions': ()}" \
+  'def _get_proxies():' \
+  '    return {}' \
+  > "$TARGET_FRAMEWORKS/lib/python3.14/_scproxy.py"
+
 echo "Checking python *.so for dylib dependencies"
 check_xbmc_dylib_depends "$TARGET_FRAMEWORKS"/lib/python$PYTHON_VERSION "*.so"
 

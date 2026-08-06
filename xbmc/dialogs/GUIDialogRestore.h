@@ -43,6 +43,10 @@ private:
   std::string ResolveUserdataPath(const std::string& fullPath, const SMBConfig& config,
                                   std::string& diag);
 
+#if defined(TARGET_DARWIN_TVOS)
+  void SyncTVOSXmlPersistence(const std::string& realDir, std::string& diag);
+#endif
+
   static constexpr int CONTROL_EDIT_SERVER = 10;
   static constexpr int CONTROL_EDIT_USERNAME = 11;
   static constexpr int CONTROL_EDIT_PASSWORD = 12;
