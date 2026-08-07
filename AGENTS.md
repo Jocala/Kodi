@@ -204,12 +204,29 @@ assembled manually from the built `Kodi.app` (see `build-testflight.sh`).
 - ASC app record: tvOS "Jocala Media", adamId `6796066358`, provider `69a6de6e...`.
 
 ### Uploading to App Store Connect
+Uses the **App Store Connect API key (JWT)** — no Apple ID app-specific password
+needed. Key credentials (2026-08-07):
+- Key ID: `D872KPNP65`
+- Issuer ID: `69a6de6e-a9b5-47e3-e053-5b8c7c11a4d1`
+- Key file: `~/.appstoreconnect/private_keys/AuthKey_D872KPNP65.p8` (chmod 600)
+  — must live in one of altool's search locations (`~/private_keys`,
+  `~/.private_keys`, `~/.appstoreconnect/private_keys`, or `$API_PRIVATE_KEYS_DIR`);
+  `AuthKey_*.p8` is gitignored so it can never be committed.
+
+`build-testflight.sh` passes `-authenticationKeyPath/-authenticationKeyID/
+-authenticationKeyIssuerID` to `xcodebuild -exportArchive`, so the export uploads
+with the API key automatically (defaults overridable via env
+`ASC_API_KEY`/`ASC_API_ISSUER`/`ASC_API_KEY_PATH`).
+
+Manual upload:
 ```bash
 xcrun altool --upload-app -f "$BUILD_DIR/TestFlight/Kodi.ipa" -t tvos \
-  -u jeffelkins@gmail.com -p <APP_SPECIFIC_PASSWORD>
-# or --apiKey <KEY_ID> --apiIssuer <ISSUER_ID> --apiKeyPath <PATH_TO_P8>
+  --apiKey D872KPNP65 --apiIssuer 69a6de6e-a9b5-47e3-e053-5b8c7c11a4d1 \
+  --p8-file-path "$HOME/.appstoreconnect/private_keys/AuthKey_D872KPNP65.p8"
+# (deprecated alt) -u jeffelkins@gmail.com -p <APP_SPECIFIC_PASSWORD>
 ```
-No app-specific password is stored in keychain; user must supply one.
+Test a key without uploading: `xcrun altool --generate-jwt --apiKey <KEY_ID> --apiIssuer <ISSUER_ID>`
+(prints a signed JWT; `--list-providers` does NOT support API-key auth).
 
 ### Outcomes
 - `/tmp/kodi-export2/Kodi.ipa` (manual run, 2026-07-31): **export + validation PASSED**

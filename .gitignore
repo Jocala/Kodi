@@ -269,3 +269,6 @@ exclude_dll.txt
 
 # clangd index
 .cache/
+
+# App Store Connect API private keys (never commit)
+AuthKey_*.p8

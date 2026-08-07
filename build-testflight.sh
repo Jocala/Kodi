@@ -25,6 +25,13 @@ ARCHIVE_PATH="$BUILD_DIR/TestFlight/Kodi.xcarchive"
 IPA_PATH="$BUILD_DIR/TestFlight"
 EXPORT_OPTS="$BUILD_DIR/TestFlight/ExportOptions.plist"
 
+# App Store Connect API key (JWT) credentials. Key file must be named
+# 'AuthKey_<KEY_ID>.p8' in one of altool's search locations, e.g.
+# ~/.appstoreconnect/private_keys/. Override via env if you change keys.
+ASC_API_KEY="${ASC_API_KEY:-D872KPNP65}"
+ASC_API_ISSUER="${ASC_API_ISSUER:-69a6de6e-a9b5-47e3-e053-5b8c7c11a4d1}"
+ASC_API_KEY_PATH="${ASC_API_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY}.p8}"
+
 echo "=== 1. Regenerate Xcode project ==="
 make -C "$KODI_SRC/tools/depends/target/cmakebuildsys" \
   BUILD_DIR="$BUILD_DIR" \
@@ -132,6 +139,9 @@ xcodebuild -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportOptionsPlist "$EXPORT_OPTS" \
   -exportPath "$IPA_PATH" \
+  -authenticationKeyPath "$ASC_API_KEY_PATH" \
+  -authenticationKeyID "$ASC_API_KEY" \
+  -authenticationKeyIssuerID "$ASC_API_ISSUER" \
   -allowProvisioningUpdates
 
 echo ""
@@ -139,5 +149,6 @@ echo "=== Done ==="
 echo "Archive: $ARCHIVE_PATH"
 echo "IPA:     $IPA_PATH/Kodi.ipa"
 echo "Upload with:"
-echo "  xcrun altool --upload-app -f '$IPA_PATH/Kodi.ipa' -t tvos --apiKey <KEY_ID> --apiIssuer <ISSUER_ID> --apiKeyPath <PATH_TO_P8>"
+echo "  xcrun altool --upload-app -f '$IPA_PATH/Kodi.ipa' -t tvos"
+echo "    --apiKey $ASC_API_KEY --apiIssuer $ASC_API_ISSUER --p8-file-path '$ASC_API_KEY_PATH'"
 echo "  (or: -u jeffelkins@gmail.com -p <APP_SPECIFIC_PASSWORD>)"
