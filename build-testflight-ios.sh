@@ -2,13 +2,13 @@
 set -e
 
 KODI_SRC="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="$KODI_SRC/kodi-build"
-APP_PATH="$BUILD_DIR/build/Release-appletvos/Kodi.app"
+BUILD_DIR="$KODI_SRC/kodi-build-ios"
+APP_PATH="$BUILD_DIR/build/Release-iphoneos/Kodi.app"
 DEV_TEAM="9Q77WK7W3R"
-BUNDLE_ID="com.jocala.kodi"
+BUNDLE_ID="com.jocala.kodi.ios"
 MARKETING_VERSION="${MARKETING_VERSION:-22.0}"
 
-# Unique build number: date + incrementing counter (stored in gitignored kodi-build)
+# Unique build number: date + incrementing counter (stored in gitignored kodi-build-ios)
 BUILDNUM_FILE="$BUILD_DIR/.buildnumber"
 TODAY=$(date +%Y%m%d)
 COUNT=1
@@ -39,24 +39,21 @@ make -C "$KODI_SRC/tools/depends/target/cmakebuildsys" \
 
 echo ""
 echo "=== 2. Set version (marketing: $MARKETING_VERSION, build: $BUILD_NUMBER) ==="
-for plist in "$BUILD_DIR/CMakeFiles/kodi.dir/Info.plist" \
-             "$BUILD_DIR/CMakeFiles/kodi-topshelf.dir/Info.plist"; do
-  echo "  patching $plist"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" "$plist"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$plist"
-done
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" \
+  "$BUILD_DIR/CMakeFiles/kodi.dir/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" \
+  "$BUILD_DIR/CMakeFiles/kodi.dir/Info.plist"
 
 echo ""
-echo "=== 3. Build for tvOS (Release) ==="
+echo "=== 3. Build for iOS (Release) ==="
 # NOTE: 'xcodebuild archive' on this CMake project yields an empty Products/
 # dir, so we build the app and assemble the archive manually.
-# Remove stale symlinks that block MkDir during the build.
-find "$BUILD_DIR/build/Release-appletvos" -maxdepth 2 -name "Kodi.app" -type l -delete 2>/dev/null || true
-find "$BUILD_DIR/build/Release-appletvos" -maxdepth 2 -name "kodi-topshelf.appex" -type l -delete 2>/dev/null || true
+find "$BUILD_DIR/build/Release-iphoneos" -maxdepth 2 -name "Kodi.app" -type l -delete 2>/dev/null || true
 xcodebuild -project "$BUILD_DIR/kodi.xcodeproj" \
-  -scheme kodi \
   -configuration Release \
-  -destination "generic/platform=tvOS"
+  -destination "generic/platform=iOS" \
+  CODE_SIGN_IDENTITY="Apple Development" \
+  CODE_SIGN_STYLE=Automatic
 
 echo ""
 echo "=== 4. Strip App Store-objectionable files ==="
@@ -66,14 +63,11 @@ echo "=== 4. Strip App Store-objectionable files ==="
 # startup; deleting a whole addon directory makes CAddonMgr::Init fail and Kodi
 # exits ("Unable to create application. Exiting"). Keeping addon.xml + .py
 # sources satisfies Kodi; the .so files are what Apple rejects.
-# libdvdnav-aarch64.so is not in the manifest and is only used for DVD
-# playback, so removing it is safe for an SMB media player.
 echo "  deleting .so binaries under AppData/AppHome"
 find "$APP_PATH/AppData/AppHome" -name "*.so" -delete
 # python build tree + stray Mach-O objects would trip App Store validation
 find "$APP_PATH/AppData/AppHome/lib" -name "config*" -type d -prune -exec rm -rf {} +
 find "$APP_PATH/AppData/AppHome/lib" -name "*.o" -delete
-# UIFileSharingEnabled is fixed to boolean true in the source Info.plist.in.
 
 echo ""
 echo "=== 5. Assemble .xcarchive manually ==="
@@ -150,6 +144,6 @@ echo "=== Done ==="
 echo "Archive: $ARCHIVE_PATH"
 echo "IPA:     $IPA_PATH/Kodi.ipa"
 echo "Upload with:"
-echo "  xcrun altool --upload-app -f '$IPA_PATH/Kodi.ipa' -t tvos"
+echo "  xcrun altool --upload-app -f '$IPA_PATH/Kodi.ipa' -t ios"
 echo "    --apiKey $ASC_API_KEY --apiIssuer $ASC_API_ISSUER --p8-file-path '$ASC_API_KEY_PATH'"
 echo "  (or: -u jeffelkins@gmail.com -p <APP_SPECIFIC_PASSWORD>)"

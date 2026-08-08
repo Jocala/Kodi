@@ -20,6 +20,14 @@ if(CORE_PLATFORM_NAME_LC STREQUAL tvos)
                                                   XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS ${ENTITLEMENTS_OUT_PATH})
 
 else()
+  # iOS app icon asset catalog (required by App Store for iOS >= 10; the
+  # legacy loose AppIcon*.png approach is rejected with code 90022).
+  set(ASSET_CATALOG "${CMAKE_SOURCE_DIR}/xbmc/platform/darwin/ios/Assets.xcassets")
+  set(ASSET_CATALOG_ASSETS AppIcon)
+  target_sources(${APP_NAME_LC} PRIVATE "${ASSET_CATALOG}")
+  set_source_files_properties("${ASSET_CATALOG}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+  set_target_properties(${APP_NAME_LC} PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME ${ASSET_CATALOG_ASSETS})
+
   set(BUNDLE_RESOURCES ${CMAKE_SOURCE_DIR}/media/applaunch_screen.png
                        ${CMAKE_SOURCE_DIR}/tools/darwin/packaging/media/ios/squared/AppIcon29x29.png
                        ${CMAKE_SOURCE_DIR}/tools/darwin/packaging/media/ios/squared/AppIcon29x29@2x.png

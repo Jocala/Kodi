@@ -12,7 +12,7 @@ KODI_SRC="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$KODI_SRC/kodi-build-ios"
 APP_PATH="$BUILD_DIR/build/Debug-iphoneos/Kodi.app"
 DEVICE="jpad"
-BUNDLE_ID="com.jocala.kodi"
+BUNDLE_ID="com.jocala.kodi.ios"
 DEV_TEAM="9Q77WK7W3R"
 
 echo "=== 1. Regenerate Xcode project ==="

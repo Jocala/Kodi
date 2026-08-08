@@ -80,10 +80,16 @@ for a in $(otool -L "$TARGET_BINARY"  | grep "$EXTERNAL_LIBS\|$DYLIB_NAMEPATH" |
 done
 
 echo "Package $EXTERNAL_LIBS/lib/python$PYTHON_VERSION"
-mkdir -p "$TARGET_FRAMEWORKS/lib"
+# Apple does not allow content other than Swift runtime libraries in the
+# Frameworks directory (code 90432), so the python stdlib lives in the app's
+# data root (special://xbmc -> AppData/AppHome) as lib/python3.14.
+PYTHON_LIB_DIR="$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/AppData/AppHome/lib"
+mkdir -p "$PYTHON_LIB_DIR"
 PYTHONSYNC="rsync -aq --exclude .DS_Store --exclude *.a --exclude *.exe --exclude test --exclude tests"
-${PYTHONSYNC} "$EXTERNAL_LIBS/lib/python$PYTHON_VERSION" "$TARGET_FRAMEWORKS/lib/"
-rm -rf "$TARGET_FRAMEWORKS/lib/python$PYTHON_VERSION/config"
+${PYTHONSYNC} "$EXTERNAL_LIBS/lib/python$PYTHON_VERSION" "$PYTHON_LIB_DIR/"
+# python build tree (config-3.14) contains .o/.a build artifacts and is not
+# needed at runtime; remove it (it would trip App Store validation 90171).
+rm -rf "$PYTHON_LIB_DIR/python$PYTHON_VERSION"/config*
 
 # urllib.request imports _scproxy on darwin; it is not built for iOS/tvOS.
 # Provide a pure-python stub returning no proxy configuration.
@@ -92,10 +98,10 @@ printf '%s\n' \
   "    return {'exclude_simple': False, 'exceptions': ()}" \
   'def _get_proxies():' \
   '    return {}' \
-  > "$TARGET_FRAMEWORKS/lib/python3.14/_scproxy.py"
+  > "$PYTHON_LIB_DIR/python3.14/_scproxy.py"
 
 echo "Checking python *.so for dylib dependencies"
-check_xbmc_dylib_depends "$TARGET_FRAMEWORKS"/lib/python$PYTHON_VERSION "*.so"
+check_xbmc_dylib_depends "$PYTHON_LIB_DIR"/python$PYTHON_VERSION "*.so"
 
 echo "Checking system *.so for dylib dependencies"
 check_xbmc_dylib_depends "$XBMC_HOME"/system "*.so"

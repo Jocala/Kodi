@@ -31,6 +31,7 @@
 | appletv  | Apple TV 4K (3rd gen, AppleTV14,1)   | 942EFDDE-3584-5D12-9672-17CA071EB5E5 |
 | jpad     | iPad (A16, iPad15,7)                 | 83AD472F-8BE9-58BD-9936-4EDF5B660609 |
 | jphone   | iPhone 15 Pro Max (iPhone16,2)       | 2A26B51F-5502-5D00-AECF-76896E24EDF1 |
+| kphone   | iPhone 14 (iPhone14,7)               | EF8AC0BF-C213-5B5F-B92B-F86C7F7D489B |
 | mpad     | iPad mini 6th gen (iPad14,1)         | 8BACA08C-16D6-50EB-82F1-FC15946B004F |
 | opad     | iPad Air 3rd gen (iPad11,3)          | 9B5909D2-1931-5CD8-B6E8-E29C1F39F10D |
 
@@ -247,6 +248,71 @@ Test a key without uploading: `xcrun altool --generate-jwt --apiKey <KEY_ID> --a
   `xcrun devicectl device info processes`), or just relaunch it.
 - Install-on-device for testing still uses `build-install.sh` (dev-signed build,
   `xcrun devicectl device install app`).
+
+## iOS Build & TestFlight (2026-08-07)
+
+Goal: get Kodi (as "Jocala Media Center") onto iPad/iPhone via TestFlight.
+
+### iOS bundle ID / app record
+- iOS uses a **distinct bundle ID** `com.jocala.kodi.ios` (tvOS keeps
+  `com.jocala.kodi`). A bundle ID can belong to only one ASC app record, and iOS
+  + tvOS must differ.
+- ASC app record: **"Jocala Media Center iOS"** (id `6799227676`), team
+  `9Q77WK7W3R`. Created in the ASC web UI — the App Store Connect **API cannot
+  create apps** (`apps` allows only GET/UPDATE) and **cannot create internal beta
+  groups** (`betaGroups` created via API are always external /
+  `isInternalGroup: false`). Internal groups must be made in the web UI
+  (TestFlight → Internal Testing).
+- The App Store Connect API **cannot register a proper iOS App ID** either —
+  `POST /v1/bundleIds` creates only a `UNIVERSAL`-platform record that the "New
+  App" form rejects. Register the App ID as an explicit **iOS** App ID in the
+  Developer portal (Certificates, Identifiers & Profiles → Identifiers).
+
+### App Store rejections hit on iOS (and their fixes)
+- **ITMS-90338 (non-public API)**: `hasExternalKeyboard()` used the private
+  `UIKeyboardImpl` selector `isInHardwareKeyboardMode` for pre-iOS-14 devices.
+  Removed the private-API fallback (`DarwinEmbedKeyboard.mm`) — iOS 14+ uses the
+  public `GCKeyboard.coalescedKeyboard`; pre-14 returns false.
+- **ITMS-90426 (SwiftSupport folder missing)**: caused by a bare
+  `libshairplay.0.dylib` in `Frameworks/`. The tvOS build already converts
+  dylibs into `.framework` bundles; iOS did not (commented-out TODO). Enabled
+  the conversion for iOS (`copyframeworks-dylibs2frameworks.command`) and added
+  `xbmc/platform/darwin/ios/FrameworkSeed_Info.plist`.
+- **90022 (missing 120x120 icon)**: iOS ≥10 requires the app icon in an **asset
+  catalog**; the legacy loose `AppIcon*.png` + `CFBundleIcons` plist approach is
+  rejected. Added `xbmc/platform/darwin/ios/Assets.xcassets/AppIcon.appiconset`
+  (generated from `~/Desktop/opencode/tv_1024.png`, opaque RGB), wired it in
+  `cmake/scripts/darwin_embedded/Install.cmake`
+  (`ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`), and removed the stale
+  `CFBundleIcons` / `CFBundleIcons~ipad` blocks from the iOS `Info.plist.in`.
+- **ITMS-90068 (MinimumOSVersion 12.0 too low)**: Apple requires ≥15.0 by Spring
+  2027. `cmake/scripts/darwin_embedded/ArchSetup.cmake` now sets
+  `IPHONEOS_DEPLOYMENT_TARGET 15.0` for iOS (warning-clean build).
+- **ITMS-90788 (missing LSHandlerRank)**: added `LSHandlerRank=Alternate` +
+  `CFBundleTypeRole=Viewer` to all four `CFBundleDocumentTypes` in the iOS
+  `Info.plist.in`.
+
+### iOS release pipeline
+- `build-testflight-ios.sh` — mirror of the tvOS script: `kodi-build-ios` /
+  `Release-iphoneos` / `com.jocala.kodi.ios`, own `.buildnumber` counter, patches
+  only `kodi.dir/Info.plist`, strips `.so` + `config*`/`.o` under
+  `AppData/AppHome`, assembles the `.xcarchive` manually, exports with
+  `destination=upload` + API-key auth. Dev install uses `build-install-ios.sh`
+  (now also `com.jocala.kodi.ios`).
+- TestFlight group setup (via API): create the group, then
+  `POST /v1/betaGroups/{id}/relationships/builds` for the build and
+  `/relationships/betaTesters` for the tester. A beta tester must be created
+  with a `betaGroups` relationship (`betaTesters` requires betaGroups or builds
+  on CREATE); the app relationship can't be set on CREATE.
+- Beta App Review: `POST /v1/betaAppReviewSubmissions`. Requires the **Beta App
+  Description** (web-UI-only field) and contact info
+  (`betaAppReviewDetails` PATCH — `contactPhone` needs a valid
+  `+1...`-style number). Only **one build per version train** can be in review
+  at a time (`ENTITY_UNPROCESSABLE.ANOTHER_BUILD_IN_REVIEW`); delete/remove the
+  earlier one in the web UI or wait for it to resolve.
+- Public TestFlight link: `PATCH /v1/betaGroups/{id}` with
+  `publicLinkEnabled:true` (works only after the build passes Beta App Review).
+  iOS external link: `https://testflight.apple.com/join/6DMeeMkV`.
 
 ## Build System
 
