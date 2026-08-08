@@ -944,19 +944,19 @@
 				<textureradiooffnofocus colordiffuse="EEFFFFFF">special://xbmc/media/vendor_icon.png</textureradiooffnofocus>
 				<textureradioonfocus colordiffuse="EEFFFFFF">dialogs/close.png</textureradioonfocus>
 				<textureradioonnofocus colordiffuse="EEFFFFFF">special://xbmc/media/vendor_icon.png</textureradioonnofocus>
-				<onclick>Action(close)</onclick>
-				<visible>!Skin.HasSetting(touchmode)</visible>
-			</control>
-			<control type="button">
-				<right>10</right>
-				<top>11</top>
-				<width>48</width>
-				<height>48</height>
-				<texturefocus>dialogs/close.png</texturefocus>
-				<texturenofocus>dialogs/close.png</texturenofocus>
-				<onclick>Action(close)</onclick>
-				<visible>Skin.HasSetting(touchmode)</visible>
-			</control>
+ 				<onclick>Action(close)</onclick>
+ 				<visible>!System.Platform.IOS &amp; !Skin.HasSetting(touchmode)</visible>
+ 			</control>
+ 			<control type="button">
+ 				<right>10</right>
+ 				<top>11</top>
+ 				<width>48</width>
+ 				<height>48</height>
+ 				<texturefocus>dialogs/close.png</texturefocus>
+ 				<texturenofocus>dialogs/close.png</texturenofocus>
+ 				<onclick>Action(close)</onclick>
+ 				<visible>System.Platform.IOS | Skin.HasSetting(touchmode)</visible>
+ 			</control>
 		</control>
 	</include>
 	<include name="TopBar">
@@ -1165,7 +1165,7 @@
 					<animation effect="fade" start="100" end="0" time="200">WindowClose</animation>
 				</control>
 			</control>
-			<include condition="Skin.HasSetting(touchmode) + !Window.IsActive(home)">TouchBackButton</include>
+			<include condition="(System.Platform.IOS | Skin.HasSetting(touchmode)) + !Window.IsActive(home)">TouchBackButton</include>
 		</definition>
 	</include>
 	<include name="TopBarLabels">
@@ -1308,7 +1308,7 @@
 				<control type="group">
 					<visible>$PARAM[info_visible]</visible>
 					<visible>!System.HasActiveModalDialog</visible>
-					<visible>!Skin.HasSetting(touchmode)</visible>
+					<visible>!System.Platform.IOS &amp; !Skin.HasSetting(touchmode)</visible>
 					<animation effect="fade" time="400">VisibleChange</animation>
 					<animation effect="fade" start="0" end="100" time="400">WindowOpen</animation>
 					<animation effect="fade" start="100" end="0" time="300">WindowClose</animation>
@@ -1490,7 +1490,7 @@
 	<include name="TouchButtons">
 		<control type="grouplist" id="700">
 			<orientation>horizontal</orientation>
-			<visible>Skin.HasSetting(touchmode)</visible>
+			<visible>System.Platform.IOS | Skin.HasSetting(touchmode)</visible>
 			<visible>!Window.IsActive(home) + !Window.IsActive(filemanager)</visible>
 			<animation effect="fade" start="0" end="100" time="400" condition="Window.Previous(home)">WindowOpen</animation>
 			<animation effect="fade" start="100" end="0" time="300" condition="Window.Next(home)">WindowClose</animation>

@@ -186,7 +186,7 @@
 				<texture>frame/osdfade.png</texture>
 			</control>
 			<control type="group">
-				<animation effect="slide" end="90,0" time="0" condition="Skin.HasSetting(touchmode)">conditional</animation>
+				<animation effect="slide" end="90,0" time="0" condition="System.Platform.IOS | Skin.HasSetting(touchmode)">conditional</animation>
 				<control type="grouplist">
 					<visible>!String.IsEmpty(Player.Art(tvshow.clearlogo)) | !String.IsEmpty(Player.Art(clearlogo))</visible>
 					<top>10</top>

@@ -367,6 +367,6 @@
 				</control>
 			</control>
 		</control>
-		<include condition="Skin.HasSetting(touchmode)">TouchBackButton</include>
+		<include condition="System.Platform.IOS | Skin.HasSetting(touchmode)">TouchBackButton</include>
 	</controls>
 </window>

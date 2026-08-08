@@ -88,7 +88,7 @@
 					<textureradioonfocus colordiffuse="EEFFFFFF">dialogs/close.png</textureradioonfocus>
 					<textureradioonnofocus colordiffuse="EEFFFFFF">special://xbmc/media/vendor_icon.png</textureradioonnofocus>
 					<onclick>ClearProperty(InfoViewer_Visible,Home)</onclick>
-					<visible>!Skin.HasSetting(touchmode)</visible>
+					<visible>!System.Platform.IOS &amp; !Skin.HasSetting(touchmode)</visible>
 				</control>
 				<control type="button">
 					<right>10</right>
@@ -98,7 +98,7 @@
 					<texturefocus>dialogs/close.png</texturefocus>
 					<texturenofocus>dialogs/close.png</texturenofocus>
 					<onclick>ClearProperty(InfoViewer_Visible,Home)</onclick>
-					<visible>Skin.HasSetting(touchmode)</visible>
+					<visible>System.Platform.IOS | Skin.HasSetting(touchmode)</visible>
 				</control>
 			</control>
 			<control type="grouplist" id="2000">
