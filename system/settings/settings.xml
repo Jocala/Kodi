@@ -2268,7 +2268,7 @@
         <requirement>HAS_ZEROCONF</requirement>
         <setting id="services.zeroconf" type="boolean" label="1260" help="36342">
           <level>1</level>
-          <default>true</default>
+          <default>false</default>
           <control type="toggle" />
         </setting>
       </group>
@@ -2352,7 +2352,7 @@
       <group id="2" label="14275">
         <setting id="services.esenabled" type="boolean" label="14276" help="36334">
           <level>1</level>
-          <default>true</default>
+          <default>false</default>
           <control type="toggle" />
         </setting>
         <setting id="services.esport" type="integer" label="792" help="36335">
@@ -2602,7 +2602,7 @@
       <group id="3" label="37047">
         <setting id="services.wsdiscovery" type="boolean" label="37048" help="37049">
           <level>2</level>
-          <default>true</default>
+          <default>false</default>
           <control type="toggle" />
         </setting>
       </group>

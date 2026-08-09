@@ -535,6 +535,7 @@ bool CNetworkServices::OnSettingUpdate(const std::shared_ptr<CSetting>& setting,
 
 void CNetworkServices::Start()
 {
+#if !defined(TARGET_DARWIN_EMBEDDED)
   StartZeroconf();
   if (m_settings->GetBool(CSettings::SETTING_SERVICES_UPNP))
     StartUPnP();
@@ -548,6 +549,7 @@ void CNetworkServices::Start()
         CGUIDialogKaiToast::Warning,
         CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(33103),
         CServiceBroker::GetResourcesComponent().GetLocalizeStrings().Get(33100));
+#endif
 
 #ifdef HAS_WEB_SERVER
   // Start web server after eventserver and JSON-RPC server, so users can use these interfaces
@@ -581,7 +583,9 @@ void CNetworkServices::Start()
   StartAirTunesServer();
   StartAirPlayServer();
   StartRss();
+#if !defined(TARGET_DARWIN_EMBEDDED)
   StartWSDiscovery();
+#endif
 }
 
 void CNetworkServices::Stop(bool bWait)

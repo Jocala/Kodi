@@ -5,7 +5,7 @@ KODI_SRC="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$KODI_SRC/kodi-build"
 APP_PATH="$BUILD_DIR/build/Release-appletvos/Kodi.app"
 DEV_TEAM="9Q77WK7W3R"
-BUNDLE_ID="com.jocala.kodi"
+BUNDLE_ID="com.jocala.kodi.tvos"
 MARKETING_VERSION="${MARKETING_VERSION:-22.0}"
 
 # Unique build number: date + incrementing counter (stored in gitignored kodi-build)

@@ -217,9 +217,10 @@ XBMCController* g_xbmcController;
   CWinSystemTVOS* winSystem = dynamic_cast<CWinSystemTVOS*>(CServiceBroker::GetWinSystem());
   winSystem->OnAppFocusChange(false);
 
-  CServiceBroker::GetNetwork().GetServices().Stop(true);
-
-  [self endEnterBackgroundTask];
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    CServiceBroker::GetNetwork().GetServices().Stop(true);
+    [self endEnterBackgroundTask];
+  });
 }
 
 - (void)enterForeground

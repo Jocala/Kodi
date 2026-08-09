@@ -14,7 +14,7 @@ KODI_SRC="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$KODI_SRC/kodi-build"
 APP_PATH="$BUILD_DIR/build/Debug-appletvos/Kodi.app"
 DEVICE="appletv"
-BUNDLE_ID="com.jocala.kodi"
+BUNDLE_ID="com.jocala.kodi.tvos"
 DEV_TEAM="9Q77WK7W3R"
 
 echo "=== 1. Regenerate Xcode project ==="
@@ -31,16 +31,17 @@ xcodebuild -project "$BUILD_DIR/kodi.xcodeproj" \
 if [ "$WIPE" -eq 1 ]; then
   if [ "$PRESERVE_CREDS" -eq 1 ]; then
     echo "=== 3a. Snapshot SMB creds (sources.xml + passwords.xml) ==="
-    python3 <<'PYEOF2'
-import plistlib, gzip, pathlib, sys
+    BUNDLE_ID="$BUNDLE_ID" python3 <<'PYEOF2'
+import plistlib, gzip, pathlib, sys, os
 try:
     src = pathlib.Path("/tmp/plist-snapshot.plist")
+    bundle_id = os.environ["BUNDLE_ID"]
     # copy current plist off device
     import subprocess
     r = subprocess.run(
         ["xcrun","devicectl","device","copy","from","--device","appletv",
-         "--domain-type","appDataContainer","--domain-identifier","com.jocala.kodi",
-         "--source","Library/Preferences/com.jocala.kodi.plist","--destination",str(src)],
+         "--domain-type","appDataContainer","--domain-identifier",bundle_id,
+         "--source",f"Library/Preferences/{bundle_id}.plist","--destination",str(src)],
         capture_output=True)
     if src.exists() and src.stat().st_size>0:
         d = plistlib.loads(src.read_bytes())
@@ -70,7 +71,7 @@ if [ "$WIPE" -eq 1 ] && [ "$PRESERVE_CREDS" -eq 1 ] && [ -s /tmp/smb-preserve-sn
   xcrun devicectl device process launch --device "$DEVICE" "$BUNDLE_ID"
   for _ in $(seq 1 20); do
     if xcrun devicectl device copy from --device "$DEVICE" --domain-type appDataContainer \
-      --domain-identifier "$BUNDLE_ID" --source "Library/Preferences/com.jocala.kodi.plist" \
+      --domain-identifier "$BUNDLE_ID" --source "Library/Preferences/$BUNDLE_ID.plist" \
       --destination "/tmp/plist-after.plist" 2>/dev/null; then
       break
     fi
@@ -87,7 +88,7 @@ print(f"  merged {list(snap.keys())} into plist")
 PYEOF3
     xcrun devicectl device copy to --device "$DEVICE" --domain-type appDataContainer \
       --domain-identifier "$BUNDLE_ID" --source /tmp/plist-after.plist \
-      --destination "Library/Preferences/com.jocala.kodi.plist"
+      --destination "Library/Preferences/$BUNDLE_ID.plist"
     echo "  restored SMB creds"
   else
     echo "  no plist yet, skipping cred restore"

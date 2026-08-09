@@ -258,8 +258,8 @@ void CWSDiscoveryListenerUDP::Process()
   while (!m_bStop)
   {
     FD_SET(fd, &rset);
-    timeout.tv_sec = 3;
-    timeout.tv_usec = 0;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 200000;
     nready = select((fd + 1), &rset, NULL, NULL, &timeout);
 
     if (nready < 0)
