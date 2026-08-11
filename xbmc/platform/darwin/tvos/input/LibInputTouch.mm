@@ -211,7 +211,7 @@
       [[UILongPressGestureRecognizer alloc] initWithTarget:self
                                                     action:@selector(SiriLongSelectHandler:)];
   longSelectRecognizer.allowedPressTypes = selectTypes;
-  longSelectRecognizer.minimumPressDuration = 0.001;
+  longSelectRecognizer.minimumPressDuration = 0.5;
   longSelectRecognizer.delegate = self;
   [g_xbmcController.glView addGestureRecognizer:longSelectRecognizer];
 
@@ -219,7 +219,7 @@
       [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(SiriSelectHandler:)];
   selectRecognizer.allowedPressTypes = selectTypes;
   selectRecognizer.delegate = self;
-  [longSelectRecognizer requireGestureRecognizerToFail:selectRecognizer];
+  [selectRecognizer requireGestureRecognizerToFail:longSelectRecognizer];
   [g_xbmcController.glView addGestureRecognizer:selectRecognizer];
 
   auto doubleSelectRecognizer =
@@ -228,7 +228,6 @@
   doubleSelectRecognizer.allowedPressTypes = selectTypes;
   doubleSelectRecognizer.numberOfTapsRequired = 2;
   doubleSelectRecognizer.delegate = self;
-  [longSelectRecognizer requireGestureRecognizerToFail:doubleSelectRecognizer];
   [g_xbmcController.glView.gestureRecognizers.lastObject
       requireGestureRecognizerToFail:doubleSelectRecognizer];
   [g_xbmcController.glView addGestureRecognizer:doubleSelectRecognizer];

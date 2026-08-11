@@ -350,3 +350,30 @@ make -j$(sysctl -n hw.logicalcpu)
 ```
 
 (Exact toolchain and flags may vary — refer to `docs/` for platform guides.)
+
+## adblink — Remote Restore/Backup for Apple TV Media Center (Exploratory)
+
+**Status:** Exploratory only. Parked until the Kodi fork clears App Store review (or a 2nd upload round is required pre-acceptance). No work planned until then.
+
+**Goal:** Build a function into `/Users/jeff/source/adblink/` to trigger the Apple TV Media Center app's **restore** (and optionally **backup**) functions over the network.
+
+**Key finding — the gap:** adblink is **ADB-based and Android-only**. tvOS has no ADB, so adblink's device model (`adb -s <serial> shell`, `AdbDevice`, scoped storage, `/sdcard/xbmc_env.properties`) does not apply. A **network channel** is required.
+
+**Current tvOS-side facts:**
+- `restorefromnetwork` builtin (`xbmc/interfaces/builtins/SystemBuiltins.cpp:279`) only does `dlg->Open()`; the real work runs on a GUI button click (`CGUIDialogRestore::OnRestore()`, `xbmc/dialogs/GUIDialogRestore.cpp:396`) reading live edit-control values.
+- Kodi has a JSON-RPC **TCP server** (port **9090**, `CTCPServer`) with `CTCPClient::GetPermissionFlags()` = `OPERATION_PERMISSION_ALL` (no auth — `xbmc/network/TCPServer.cpp:546`).
+- It is **disabled on tvOS** — `NetworkServices.cpp:Start()` wraps JSON-RPC/EventServer/zeroconf/WSDiscovery in `#if !defined(TARGET_DARWIN_EMBEDDED)` (our watchdog/App-Store fix). Re-enabling for JSON-RPC only would require relaxing that guard.
+- Restore/backup logic is GUI-coupled; needs a headless path reading `smb_restore.json`.
+
+**Design (two options, B preferred):**
+- **A:** Re-enable Kodi JSON-RPC TCP + add headless JSON-RPC methods. Con: full-permission LAN port, App Review exposure, watchdog-risk regression.
+- **B (preferred):** Tiny token-gated HTTP endpoint in the tvOS app using **microhttpd** (already a depends target, `tools/depends/target/libmicrohttpd/`, but not in embedded `DEPENDS`) exposing e.g. `POST /restore`, `POST /backup`.
+
+**Refactor principle (user-specified):**
+- Extract shared core from `OnRestore()`/`OnBackup()` into headless methods (e.g. `bool DoRestore(SMBConfig)` / `bool DoBackup(SMBConfig)`) doing the existing copy/swap/upload logic.
+- **GUI path remains unchanged** — `OnRestore`/`OnBackup` keep reading edit fields, call the same core, keep progress dialogs.
+- **Headless is a pure addition** — network endpoint loads config from `smb_restore.json`, calls the same core, returns status over the network. Single source of truth.
+
+**adblink side:** new manager (mirroring `BackupManager`) + UI (Kodi grid button/dialog), storing Apple TV IP + port + token + SMB config; use `QNetworkAccessManager` (already used by `kodidownloader`) or `QTcpSocket`. A separate Apple TV device record (adb table is Android-centric).
+
+**Open questions for when work starts:** Option A vs B; restore only vs also backup; SMB config from device vs pushed by adblink; target release = post-approval `1.0.x` follow-up.
