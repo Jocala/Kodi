@@ -31,6 +31,7 @@
 #include "utils/Variant.h"
 #include "utils/log.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 
@@ -43,6 +44,20 @@
 using namespace KODI::MESSAGING;
 
 static const std::string CONFIG_PATH = "special://home/smb_restore.json";
+
+// Files that a restore must not overwrite. Mirrors adblink's restore-protect
+// list. Kept in the same order as the toggle controls (ids 30..38).
+static const std::vector<std::string> PROTECTED_FILES = {
+    "guisettings.xml",    // 30
+    "advancedsettings.xml", // 31
+    "sources.xml",        // 32
+    "favourites.xml",     // 33
+    "profiles.xml",       // 34
+    "RssFeeds.xml",       // 35
+    "mediasources.xml",   // 36
+    "passwords.xml",      // 37
+    "Lircmap.xml",        // 38
+};
 
 CGUIDialogRestore::CGUIDialogRestore()
   : CGUIDialog(WINDOW_DIALOG_RESTORE, "DialogRestore.xml")
@@ -69,6 +84,15 @@ bool CGUIDialogRestore::OnMessage(CGUIMessage& message)
       setEdit(CONTROL_EDIT_USERNAME, config.username);
       setEdit(CONTROL_EDIT_PASSWORD, config.password);
       setEdit(CONTROL_EDIT_SHAREPATH, config.sharepath);
+
+      // Pre-check protect toggles from saved config
+      for (int i = 0; i < static_cast<int>(PROTECTED_FILES.size()); i++)
+      {
+        bool checked =
+            std::find(config.protect.begin(), config.protect.end(), PROTECTED_FILES[i]) !=
+            config.protect.end();
+        SetToggleSelected(CONTROL_TOGGLE_BASE + i, checked);
+      }
 
       return true;
     }
@@ -100,6 +124,16 @@ bool CGUIDialogRestore::OnMessage(CGUIMessage& message)
         Close();
         return true;
       }
+      else if (controlId == CONTROL_BUTTON_SELECT_ALL)
+      {
+        OnSelectAll();
+        return true;
+      }
+      else if (controlId == CONTROL_BUTTON_CLEAR)
+      {
+        OnClear();
+        return true;
+      }
     }
     break;
     default:
@@ -120,6 +154,94 @@ CGUIDialogRestore::SMBConfig CGUIDialogRestore::ReadFields()
   return {readEdit(CONTROL_EDIT_SERVER), readEdit(CONTROL_EDIT_USERNAME),
           readEdit(CONTROL_EDIT_PASSWORD), readEdit(CONTROL_EDIT_SHAREPATH),
           readEdit(CONTROL_EDIT_SELECTED)};
+}
+
+std::vector<std::string> CGUIDialogRestore::ReadProtectedFiles()
+{
+  std::vector<std::string> files;
+  for (int i = 0; i < static_cast<int>(PROTECTED_FILES.size()); i++)
+  {
+    CGUIMessage msg(GUI_MSG_IS_SELECTED, GetID(), CONTROL_TOGGLE_BASE + i);
+    if (OnMessage(msg) && msg.GetParam1() == 1)
+      files.push_back(PROTECTED_FILES[i]);
+  }
+  return files;
+}
+
+void CGUIDialogRestore::SetToggleSelected(int controlId, bool selected)
+{
+  CGUIMessage msg(selected ? GUI_MSG_SET_SELECTED : GUI_MSG_SET_DESELECTED, GetID(), controlId);
+  OnMessage(msg);
+}
+
+void CGUIDialogRestore::OnSelectAll()
+{
+  for (int i = 0; i < static_cast<int>(PROTECTED_FILES.size()); i++)
+    SetToggleSelected(CONTROL_TOGGLE_BASE + i, true);
+}
+
+void CGUIDialogRestore::OnClear()
+{
+  for (int i = 0; i < static_cast<int>(PROTECTED_FILES.size()); i++)
+    SetToggleSelected(CONTROL_TOGGLE_BASE + i, false);
+}
+
+std::vector<std::pair<std::string, std::string>> CGUIDialogRestore::CaptureProtectedFiles(
+    const std::vector<std::string>& files, std::string& diag)
+{
+  auto D = [&diag](const std::string& msg) { diag += msg + "\n"; };
+
+  std::vector<std::pair<std::string, std::string>> captured;
+  for (const auto& f : files)
+  {
+    std::string path = URIUtils::AddFileToFolder("special://home/userdata/", f);
+    XFILE::CFile file;
+    if (!file.Open(path, XFILE::READ_NO_CACHE))
+    {
+      D("  protected file not present, skipping: " + f);
+      continue;
+    }
+
+    std::string data;
+    char buf[65536];
+    ssize_t n;
+    while ((n = file.Read(buf, sizeof(buf))) > 0)
+      data.append(buf, n);
+    file.Close();
+
+    if (data.empty())
+    {
+      D("  protected file empty, skipping: " + f);
+      continue;
+    }
+
+    captured.emplace_back(f, data);
+    D("  captured protected file: " + f + " (" + std::to_string(data.size()) + " bytes)");
+  }
+  return captured;
+}
+
+void CGUIDialogRestore::RestoreProtectedFiles(
+    const std::vector<std::pair<std::string, std::string>>& captured, std::string& diag)
+{
+  auto D = [&diag](const std::string& msg) { diag += msg + "\n"; };
+
+  for (const auto& [name, data] : captured)
+  {
+    std::string path = URIUtils::AddFileToFolder("special://home/userdata/", name);
+    XFILE::CFile file;
+    if (!file.OpenForWrite(path, true))
+    {
+      D("  FAILED to open protected file for write: " + name);
+      continue;
+    }
+
+    if (file.Write(data.c_str(), data.size()) != static_cast<ssize_t>(data.size()))
+      D("  FAILED to write protected file: " + name);
+    else
+      D("  restored protected file: " + name);
+    file.Close();
+  }
 }
 
 bool CGUIDialogRestore::LoadConfig(SMBConfig& config)
@@ -149,6 +271,16 @@ bool CGUIDialogRestore::LoadConfig(SMBConfig& config)
     config.password = variant["password"].asString();
   if (variant["sharepath"].isString())
     config.sharepath = variant["sharepath"].asString();
+  config.protect.clear();
+  if (variant["protect"].isArray())
+  {
+    for (CVariant::const_iterator_array it = variant["protect"].begin_array();
+         it != variant["protect"].end_array(); ++it)
+    {
+      if (it->isString())
+        config.protect.push_back(it->asString());
+    }
+  }
   return true;
 }
 
@@ -159,6 +291,9 @@ bool CGUIDialogRestore::SaveConfig(const SMBConfig& config)
   variant["username"] = config.username;
   variant["password"] = config.password;
   variant["sharepath"] = config.sharepath;
+  variant["protect"] = CVariant(CVariant::VariantTypeArray);
+  for (const auto& f : config.protect)
+    variant["protect"].push_back(f);
 
   std::string json;
   if (!CJSONVariantWriter::Write(variant, json, true))
@@ -405,6 +540,7 @@ void CGUIDialogRestore::OnRestore()
   D("=== Restore started ===");
 
   SMBConfig config = ReadFields();
+  config.protect = ReadProtectedFiles();
 
   if (config.host.empty() || config.username.empty() || config.password.empty() ||
       config.sharepath.empty())
@@ -631,6 +767,11 @@ void CGUIDialogRestore::OnRestore()
     }
   }
 
+  // Capture files marked "keep" from the current userdata before the swap so a
+  // failed restore never loses them. Mirrors adblink's restore-protect list.
+  D("capturing protected files (" + std::to_string(config.protect.size()) + " checked)");
+  auto captured = CaptureProtectedFiles(config.protect, diag);
+
   // Rollback-safe atomic swap
   D("swapping temp -> userdata");
   std::string realUserdata = CSpecialProtocol::TranslatePath("special://home/userdata/");
@@ -682,6 +823,16 @@ void CGUIDialogRestore::OnRestore()
   SyncTVOSXmlPersistence(realUserdata, diag);
   D("tvOS xml persistence synced");
 #endif
+
+  // Restore the captured "keep" files over the restored data. On tvOS these
+  // writes route through CTVOSFile into NSUserDefaults; on other platforms they
+  // are plain file writes. Done after the swap + tvOS persistence sync so the
+  // protected content wins over whatever the backup contained.
+  if (!captured.empty())
+  {
+    D("restoring protected files (" + std::to_string(captured.size()) + ")");
+    RestoreProtectedFiles(captured, diag);
+  }
 
   // Clean up the old backup
   XFILE::CDirectory::RemoveRecursive(backupUserdata);
