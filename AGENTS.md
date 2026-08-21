@@ -377,3 +377,61 @@ make -j$(sysctl -n hw.logicalcpu)
 **adblink side:** new manager (mirroring `BackupManager`) + UI (Kodi grid button/dialog), storing Apple TV IP + port + token + SMB config; use `QNetworkAccessManager` (already used by `kodidownloader`) or `QTcpSocket`. A separate Apple TV device record (adb table is Android-centric).
 
 **Open questions for when work starts:** Option A vs B; restore only vs also backup; SMB config from device vs pushed by adblink; target release = post-approval `1.0.x` follow-up.
+
+## Lockdown — Prevent Addon Modification (Planned)
+
+**Status:** Planned. Single commit on `master`, no `tools/depends` rebuild, no store-metadata change. Additive guards only; does not disturb the upstream sync.
+
+**Goal:** Closed system — only addons that ship inside `Kodi.app` and are approved by Apple at review time can ever execute. No user, file-sharing, or backup-restore path may introduce new code (`addon.xml` + `.py`/`.so`/`.dylib`) from `special://home`.
+
+**Threat model:**
+- `special://home/addons` directory (user-writable)
+- SMB restore payload (crafted backup)
+- iOS file sharing (`UIFileSharingEnabled` / `LSSupportsOpeningDocumentsInPlace`)
+- Python `sys.path` shadowing (`special://home/addons` vs `special://xbmc/addons`)
+
+**What is already locked (keep):**
+- `AddonInstaller.cpp` — all install entry points (`InstallModal`, `InstallOrUpdate`, `Install`, `InstallFromZip`, `UnInstall`) return `false`
+- `AddonManager.cpp` — `FindAddons("special://home/addons")` scan removed
+- `AddonRepos.cpp` — `LoadAddonsFromDatabase` returns `false`
+- `RepositoryUpdater.cpp` — `Start()` / `ScheduleUpdate()` no-ops
+- `system/addon-manifest.xml` pins the required set; strip step deletes only `*.so`, never whole addon dirs (avoids `CAddonMgr::Init` crash)
+- Skin hides Addons/PVR/Games (`Home.xml`, `Settings.xml`, `SkinSettings.xml`)
+
+**Remaining vectors (to close):**
+- **A. `special://home/addons` still exists and is writable.** Not scanned today, but a future upstream change re-adding the scan would make it live. A crafted backup could also plant files there if `CopyDirectory` ever copied outside `userdata`.
+- **B. Restore copy filter is implicit.** `ResolveUserdataPath` returns only the `userdata` subfolder, so top-level `addons/` *should* be ignored, but there is no explicit `addons` skip in `CopyDirectory`/`UploadDirectory`.
+- **C. File sharing surface (iOS only).** `UIFileSharingEnabled=true` is set for iOS. Need to verify `special://home` is not `Documents` (read-only check: `CSpecialProtocol::TranslatePath("special://home/")` vs `special://masterprofile/` vs `Documents`). If it is, lock to `false` for store builds.
+- **D. Python import path.** Embedded `sys.path` historically included `special://home/addons`; must be locked to bundled `special://xbmc/addons` + `special://xbmcbin/addons` only.
+
+**Plan — 5 steps (one commit):**
+
+1. **Purge + guard `special://home/addons` at startup.**
+   - In `AddonManager.cpp` (or early `CApplication::Create`): if `special://home/addons` exists, `RemoveRecursive` it and log `LOGINFO "Lockdown: purged stale home/addons"`. Do not re-create the directory. Optionally `chmod 0555` the parent so a later `mkdir` fails visibly.
+
+2. **Explicit copy filter in restore.**
+   - `GUIDialogRestore.cpp`: in `CopyDirectory` and `UploadDirectory`, skip any entry where `name == "addons"` (and defensively `*.so`/`*.dll`/`*.dylib`/`*.pyo` outside `addon_data`). Even if `ResolveUserdataPath` already excludes top-level `addons/`, this guarantees a malformed backup (`userdata/addons/...`) never restores code.
+
+3. **Lock file sharing (iOS only).**
+   - Read-only verification: compare `TranslatePath("special://home/")` and `special://masterprofile/` against `Documents`.
+   - If `Documents` is inside `special://home`, set `UIFileSharingEnabled=false` in `xbmc/platform/darwin/ios/Info.plist.in` for store builds. If outside, keep `true` but document that `special://home` is not the shared `Documents`.
+
+4. **Harden Python import.** `xbmc/interfaces/python/` — ensure `PYTHONPATH` is set to bundled addons only; never prepend `special://home/addons`.
+
+5. **Re-verify skin.** `grep` that `SettingsCategory.xml` / `SettingsProfile.xml` `radiobutton id 8` remains `visible false` after upstream sync.
+
+**Verification (must all fail to install):**
+- Build `master` (`./build.sh tvos debug` + `ios debug`) → install to `appletv` + `jpad`.
+- 1) UI `Install from zip` toast fails (already `false`).
+- 2) Push crafted `special://home/addons/test.hello/addon.xml` via `devicectl` `copy to` → relaunch → `kodi.log` has no `Found addon test.hello`.
+- 3) Craft backup on Mac containing `userdata/addons/evil/addon.xml` → restore via SMB → `restore_diag.txt` logs `skipped addons`, `special://home/addons` absent after launch.
+- 4) Confirm `special://home/addons` does not exist after each launch.
+
+**What this does NOT do (by design):**
+- No signature/checksum of addons — unnecessary if the directory cannot exist; `addon-manifest.xml` already pins the set reviewed by Apple.
+- No removal of existing approved addons in `special://xbmc/addons` / `special://xbmcbin/addons` — they are the only scanned paths.
+
+**Open questions for execution:**
+- File sharing on iOS: keep `UIFileSharingEnabled=true` for local Debug (handy via Files app) and `false` for store, or `false` everywhere?
+- Purge vs ignore: delete `special://home/addons` at startup (most secure) or just ignore it? Recommend delete + log.
+- Python path: explicit `PYTHONPATH` lock needed or is `FindAddons` removal sufficient for this threat model?
