@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 
 // clang-format off
 #if defined(TARGET_DARWIN_TVOS)
@@ -848,7 +849,9 @@ void CGUIDialogRestore::OnRestore()
     }
   }
 
-  D("=== Restore completed successfully, restarting ===");
+  D("=== Restore completed successfully, closing ===");
+  HELPERS::ShowOKDialogText(CVariant{"Restore"},
+                            CVariant{"Restore complete. Media Center will now close."});
   CServiceBroker::GetAppMessenger()->PostMsg(TMSG_QUIT);
 }
 
