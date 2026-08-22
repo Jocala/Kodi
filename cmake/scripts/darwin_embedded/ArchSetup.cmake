@@ -66,6 +66,8 @@ else()
   # App Store requires iOS >= 15.0 by Spring 2027 (ITMS-90068 warning)
   set(CMAKE_XCODE_ATTRIBUTE_TVOS_DEPLOYMENT_TARGET "")
   set(CMAKE_XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET 15.0)
+  # iPad only — do not offer on iPhone
+  set(CMAKE_XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY 2)
 endif()
 
 include(cmake/scripts/darwin/Macros.cmake)
